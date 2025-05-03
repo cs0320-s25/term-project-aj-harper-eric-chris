@@ -12,10 +12,11 @@
   "dependencies": {
     "@headlessui/react": "^1.7.18",
     "@heroicons/react": "^2.1.1",
+    "face-api.js": "^0.22.2",
     "framer-motion": "^11.0.3",
     "next": "15.3.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "react-error-boundary": "^5.0.0"
   },
   "devDependencies": {

@@ -2,19 +2,14 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
-
-// Import the mock loader
-import {
-  loadTensorFlow,
-  initializeFaceDetector,
-} from "@/lib/tensorflow-loader";
+import * as faceapi from "face-api.js";
 
 // Type definitions
 type FacialCaptchaProps = {
   onSuccess: () => void;
 };
 
-type ExpressionType = "neutral" | "smile" | "surprise" | "angry";
+type ExpressionType = "neutral" | "smile" | "surprised" | "angry";
 
 // Animation presets for each expression
 const expressionAnimations = {
@@ -26,42 +21,42 @@ const expressionAnimations = {
     scale: 1.1,
     rotate: 0,
   },
-  surprise: {
+  surprised: {
     scale: 1.2,
     rotate: 0,
   },
   angry: {
-    scale: 0.9,
+    scale: 1.1,
     rotate: 0,
   },
 };
 
-// Generate a random sequence of facial expressions
+// Update the sequence generation to ensure exactly 3 different expressions
 const generateExpressionSequence = (): ExpressionType[] => {
-  const allExpressions: ExpressionType[] = [
+  const expressions: ExpressionType[] = [
     "neutral",
     "smile",
-    "surprise",
+    "surprised",
     "angry",
   ];
-  const sequence: ExpressionType[] = ["neutral"]; // Always start with neutral
+  const sequence: ExpressionType[] = [];
 
-  // Add 2-3 random expressions
-  const count = Math.floor(Math.random() * 2) + 2;
+  // Create a copy of expressions array to shuffle
+  const availableExpressions = [...expressions];
 
-  for (let i = 0; i < count; i++) {
-    const availableExpressions = allExpressions.filter(
-      (expr) => expr !== sequence[sequence.length - 1]
-    );
-    const randomIndex = Math.floor(Math.random() * availableExpressions.length);
-    sequence.push(availableExpressions[randomIndex]);
+  // Shuffle the array
+  for (let i = availableExpressions.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [availableExpressions[i], availableExpressions[j]] = [
+      availableExpressions[j],
+      availableExpressions[i],
+    ];
   }
 
-  // End with neutral
-  if (sequence[sequence.length - 1] !== "neutral") {
-    sequence.push("neutral");
-  }
+  // Take the first 3 expressions (which will be different due to shuffling)
+  sequence.push(...availableExpressions.slice(0, 3));
 
+  console.log("Generated sequence:", sequence);
   return sequence;
 };
 
@@ -69,7 +64,7 @@ const generateExpressionSequence = (): ExpressionType[] => {
 const expressionEmojis: Record<ExpressionType, string> = {
   neutral: "😐",
   smile: "😊",
-  surprise: "😲",
+  surprised: "😮",
   angry: "😠",
 };
 
@@ -79,6 +74,30 @@ interface DebugInfo {
   expression?: string;
   [key: string]: any;
 }
+
+// Add these types after the existing type definitions
+type ExpressionAnalysis = {
+  expression: ExpressionType;
+  confidence: number;
+};
+
+// Add this new component at the top level of the file, after the imports
+const DebugPanel = ({ data }: { data: any }) => (
+  <div className="fixed bottom-4 right-4 bg-black bg-opacity-75 text-white p-4 rounded-lg text-xs max-w-xs overflow-auto max-h-48">
+    <pre>{JSON.stringify(data, null, 2)}</pre>
+  </div>
+);
+
+// Add this CSS animation at the top of the file after the imports:
+const fadeInAnimation = `
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-in;
+}
+`;
 
 // Create a mockup version of FacialCaptcha
 const FacialCaptchaComponent = ({ onSuccess }: { onSuccess: () => void }) => {
@@ -94,59 +113,50 @@ const FacialCaptchaComponent = ({ onSuccess }: { onSuccess: () => void }) => {
     | "success"
     | "failure"
     | "loading"
-  >("loading"); // Start with loading state
+  >("loading");
   const [cameraAccess, setCameraAccess] = useState(false);
   const [loadingMessage, setLoadingMessage] =
     useState<string>("Initializing...");
-  const [debugInfo, setDebugInfo] = useState<DebugInfo>({});
   const [currentUserExpression, setCurrentUserExpression] =
     useState<string>("unknown");
+  const [isModelLoading, setIsModelLoading] = useState(true);
+  const [detectionConfidence, setDetectionConfidence] = useState(0);
+  const [successfulMatches, setSuccessfulMatches] = useState(0);
+  const [isExpressionMatched, setIsExpressionMatched] = useState(false);
+  const [debugData, setDebugData] = useState<any>({});
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [currentTargetEmoji, setCurrentTargetEmoji] = useState<string>("");
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const expressionTimerRef = useRef<NodeJS.Timeout | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+  const sequenceRef = useRef<ExpressionType[]>([]);
+  const currentIndexRef = useRef<number>(0);
 
-  // Mock loading TensorFlow.js and dependencies
+  // Initialize face-api.js models
   useEffect(() => {
-    const loadMockDependencies = async () => {
-      // Update loading progress
-      const updateProgress = (message: string) => {
-        console.log(message);
-        setLoadingMessage(message);
-      };
-
-      // Load mock tensorflow
-      const result = await loadTensorFlow(updateProgress);
-
-      if (result.status === "success") {
+    const loadModels = async () => {
+      try {
+        setLoadingMessage("Loading face detection models...");
+        await faceapi.nets.tinyFaceDetector.loadFromUri("/models");
+        await faceapi.nets.faceLandmark68Net.loadFromUri("/models");
+        await faceapi.nets.faceExpressionNet.loadFromUri("/models");
+        setIsModelLoading(false);
         setStage("initial");
-      } else {
+      } catch (error) {
+        console.error("Error loading models:", error);
         setStage("failure");
       }
     };
 
-    loadMockDependencies();
-
-    return () => {
-      // Cleanup
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
-      }
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-      if (expressionTimerRef.current) {
-        clearTimeout(expressionTimerRef.current);
-      }
-    };
+    loadModels();
   }, []);
 
-  // Initialize camera (mockup)
+  // Initialize camera
   const initializeCamera = async () => {
     try {
-      // For mockup, we can still request camera but not process it
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           width: { ideal: 640 },
@@ -170,128 +180,31 @@ const FacialCaptchaComponent = ({ onSuccess }: { onSuccess: () => void }) => {
     }
   };
 
-  // Draw simulated face with expression
-  const drawSimulatedFace = (
-    ctx: CanvasRenderingContext2D,
-    expression: ExpressionType
-  ) => {
-    if (!ctx) return;
-
-    const canvas = ctx.canvas;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Draw a simple face
-    const centerX = canvas.width / 2;
-    const centerY = canvas.height / 2;
-    const faceRadius = canvas.width * 0.3;
-
-    // Face
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, faceRadius, 0, Math.PI * 2);
-    ctx.fillStyle = "#ffdb99";
-    ctx.fill();
-    ctx.strokeStyle = "#000";
-    ctx.lineWidth = 2;
-    ctx.stroke();
-
-    // Eyes
-    const eyeY = centerY - faceRadius * 0.15;
-    const eyeRadiusX = faceRadius * 0.15;
-    const eyeRadiusY = faceRadius * (expression === "surprise" ? 0.2 : 0.1);
-    const leftEyeX = centerX - faceRadius * 0.35;
-    const rightEyeX = centerX + faceRadius * 0.35;
-
-    // Draw eyes based on expression
-    ctx.beginPath();
-    ctx.ellipse(leftEyeX, eyeY, eyeRadiusX, eyeRadiusY, 0, 0, Math.PI * 2);
-    ctx.ellipse(rightEyeX, eyeY, eyeRadiusX, eyeRadiusY, 0, 0, Math.PI * 2);
-
-    if (expression === "angry") {
-      // Angry eyebrows
-      ctx.moveTo(leftEyeX - eyeRadiusX, eyeY - eyeRadiusY - 10);
-      ctx.lineTo(leftEyeX + eyeRadiusX, eyeY - eyeRadiusY);
-      ctx.moveTo(rightEyeX - eyeRadiusX, eyeY - eyeRadiusY);
-      ctx.lineTo(rightEyeX + eyeRadiusX, eyeY - eyeRadiusY - 10);
-    } else if (expression === "surprise") {
-      // Surprised eyebrows
-      ctx.moveTo(leftEyeX - eyeRadiusX, eyeY - eyeRadiusY - 15);
-      ctx.lineTo(leftEyeX + eyeRadiusX, eyeY - eyeRadiusY - 15);
-      ctx.moveTo(rightEyeX - eyeRadiusX, eyeY - eyeRadiusY - 15);
-      ctx.lineTo(rightEyeX + eyeRadiusX, eyeY - eyeRadiusY - 15);
-    } else {
-      // Normal eyebrows
-      ctx.moveTo(leftEyeX - eyeRadiusX, eyeY - eyeRadiusY - 10);
-      ctx.lineTo(leftEyeX + eyeRadiusX, eyeY - eyeRadiusY - 10);
-      ctx.moveTo(rightEyeX - eyeRadiusX, eyeY - eyeRadiusY - 10);
-      ctx.lineTo(rightEyeX + eyeRadiusX, eyeY - eyeRadiusY - 10);
-    }
-
-    ctx.fillStyle = "#000";
-    ctx.fill();
-    ctx.stroke();
-
-    // Mouth
-    const mouthY = centerY + faceRadius * 0.25;
-    const mouthWidth = faceRadius * 0.6;
-    const mouthHeight = faceRadius * 0.3;
-
-    ctx.beginPath();
-    if (expression === "smile") {
-      // Smile
-      ctx.arc(centerX, mouthY, mouthWidth / 2, 0, Math.PI);
-    } else if (expression === "surprise") {
-      // Surprised mouth
-      ctx.ellipse(
-        centerX,
-        mouthY,
-        mouthWidth / 3,
-        mouthHeight / 1.5,
-        0,
-        0,
-        Math.PI * 2
-      );
-    } else if (expression === "angry") {
-      // Angry mouth
-      ctx.moveTo(centerX - mouthWidth / 2, mouthY);
-      ctx.lineTo(centerX + mouthWidth / 2, mouthY);
-    } else {
-      // Neutral mouth
-      ctx.moveTo(centerX - mouthWidth / 2, mouthY);
-      ctx.lineTo(centerX + mouthWidth / 2, mouthY);
-    }
-
-    ctx.stroke();
-
-    // Update debug info
-    setDebugInfo({
-      faceDetected: true,
-      expression: expression,
-    });
-  };
-
   // Start the demo sequence
   const startDemoSequence = () => {
     const sequence = generateExpressionSequence();
+    console.log("Starting sequence:", sequence);
+    sequenceRef.current = sequence;
+    currentIndexRef.current = 0;
     setExpressionSequence(sequence);
-    setStage("demo");
     setCurrentExpressionIndex(0);
+    setCurrentTargetEmoji(expressionEmojis[sequence[0]]); // Set initial emoji
 
     // Show each expression in sequence
     const showNextExpression = (index: number) => {
       if (index >= sequence.length) {
         // End of demo
         setStage("recording");
+        currentIndexRef.current = 0;
         setCurrentExpressionIndex(0);
+        setCurrentTargetEmoji(expressionEmojis[sequence[0]]); // Reset to first emoji
+        startTracking();
         return;
       }
 
+      currentIndexRef.current = index;
       setCurrentExpressionIndex(index);
-
-      // Draw the simulated face
-      const ctx = canvasRef.current?.getContext("2d");
-      if (ctx) {
-        drawSimulatedFace(ctx, sequence[index]);
-      }
+      setCurrentTargetEmoji(expressionEmojis[sequence[index]]); // Update emoji
 
       // Wait and show next expression
       expressionTimerRef.current = setTimeout(() => {
@@ -302,66 +215,150 @@ const FacialCaptchaComponent = ({ onSuccess }: { onSuccess: () => void }) => {
     showNextExpression(0);
   };
 
-  // Simulate facial tracking
-  const startTracking = () => {
+  // Start tracking facial expressions
+  const startTracking = async () => {
     if (!videoRef.current || !canvasRef.current) return;
+
+    // Ensure we have a sequence
+    if (sequenceRef.current.length === 0) {
+      console.log("No sequence found, generating new sequence");
+      const newSequence = generateExpressionSequence();
+      sequenceRef.current = newSequence;
+      currentIndexRef.current = 0;
+      setExpressionSequence(newSequence);
+      setCurrentExpressionIndex(0);
+    }
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // For mockup, we'll simulate recognition after a delay
-    let frameCount = 0;
-    let currentFrame = 0;
-    const targetFrames = 50; // approximately 2 seconds at 24fps
+    const processFrame = async () => {
+      if (!videoRef.current) return;
 
-    const simulateTracking = () => {
-      frameCount++;
-      if (frameCount % 3 === 0) {
-        // Skip frames to simulate processing time
-        if (currentFrame < targetFrames) {
-          // Draw the current expression
-          const currentExpression = expressionSequence[currentExpressionIndex];
-          drawSimulatedFace(ctx, currentExpression);
+      try {
+        // Clear the canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-          // Update the user's current expression periodically to show "progress"
-          if (frameCount % 15 === 0) {
-            // Randomly decide if user has matched the expression
-            const matched = Math.random() > 0.3; // 70% chance of matching
-            setCurrentUserExpression(matched ? currentExpression : "unknown");
+        // Draw video frame
+        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+
+        console.log("🔍 Processing frame...");
+        console.log("Current sequence:", sequenceRef.current);
+        console.log("Current index:", currentIndexRef.current);
+
+        // Detect faces and expressions
+        const detections = await faceapi
+          .detectAllFaces(
+            videoRef.current,
+            new faceapi.TinyFaceDetectorOptions()
+          )
+          .withFaceLandmarks()
+          .withFaceExpressions();
+
+        console.log("📊 Number of faces detected:", detections.length);
+
+        if (detections.length > 0) {
+          const face = detections[0];
+
+          // Get the expression with highest probability
+          const expressions = face.expressions;
+          console.log("😀 Raw expressions:", expressions);
+
+          // Map face-api expressions to our expression types
+          let expression: ExpressionType = "neutral";
+          let confidence = 0;
+
+          // Get the highest confidence expression
+          const maxExpression = Object.entries(expressions).reduce((a, b) =>
+            a[1] > b[1] ? a : b
+          );
+
+          // Map face-api expressions to our types
+          if (expressions.happy > 0.5) {
+            expression = "smile";
+            confidence = expressions.happy;
+          } else if (expressions.neutral > 0.5) {
+            expression = "neutral";
+            confidence = expressions.neutral;
+          } else if (expressions.surprised > 0.5) {
+            expression = "surprised";
+            confidence = expressions.surprised;
+          } else if (expressions.angry > 0.5) {
+            expression = "angry";
+            confidence = expressions.angry;
           }
 
-          currentFrame++;
-        } else {
-          // Move to next expression or finish
-          if (currentExpressionIndex < expressionSequence.length - 1) {
-            setCurrentExpressionIndex((prev) => prev + 1);
-            currentFrame = 0;
+          setIsExpressionMatched(confidence > 0.5);
+          setCurrentUserExpression(expression);
+          setDetectionConfidence(confidence);
+
+          // Update debug data with current state
+          setDebugData({
+            currentExpression: expression,
+            targetExpression: sequenceRef.current[currentIndexRef.current],
+            confidence: confidence,
+            isMatch:
+              expression === sequenceRef.current[currentIndexRef.current] &&
+              confidence > 0.5,
+            currentIndex: currentIndexRef.current,
+            totalExpressions: sequenceRef.current.length,
+            sequence: sequenceRef.current,
+            rawExpressions: expressions, // Add raw expressions to debug
+          });
+
+          // Draw face landmarks
+          faceapi.draw.drawFaceLandmarks(canvas, face);
+
+          // Check if expression matches target
+          const targetExpression = sequenceRef.current[currentIndexRef.current];
+          console.log("🎯 Target expression:", targetExpression);
+          console.log("🎯 Current expression:", expression);
+          console.log("🎯 Current confidence:", confidence);
+
+          if (expression === targetExpression && confidence > 0.5) {
+            console.log("==========================================");
+            console.log("🎉 MATCH DETECTED! 🎉");
+            console.log("Expression:", expression);
+            console.log("Confidence:", confidence);
+            console.log("==========================================");
+
+            // Move to next expression in sequence
+            const nextIndex = currentIndexRef.current + 1;
+            if (nextIndex < sequenceRef.current.length) {
+              currentIndexRef.current = nextIndex;
+              setCurrentExpressionIndex(nextIndex);
+              // Update the target emoji
+              setCurrentTargetEmoji(
+                expressionEmojis[sequenceRef.current[nextIndex]]
+              );
+              setIsExpressionMatched(false);
+            } else {
+              setShowSuccess(true);
+              setIsExpressionMatched(true);
+              onSuccess();
+              if (animationFrameRef.current) {
+                cancelAnimationFrame(animationFrameRef.current);
+              }
+            }
           } else {
-            // End of sequence, analyze results
-            cancelAnimationFrame(animationFrameRef.current!);
-            analyzeRecording();
-            return;
+            console.log(
+              "❌ No match yet. Need:",
+              targetExpression,
+              "with confidence > 0.5"
+            );
           }
+        } else {
+          console.log("❌ No face detected in frame");
         }
+      } catch (error) {
+        console.error("🚨 Error processing frame:", error);
       }
 
-      animationFrameRef.current = requestAnimationFrame(simulateTracking);
+      animationFrameRef.current = requestAnimationFrame(processFrame);
     };
 
-    animationFrameRef.current = requestAnimationFrame(simulateTracking);
-  };
-
-  // Mock analysis that always succeeds for the mockup
-  const analyzeRecording = () => {
-    setStage("analyzing");
-
-    // Simulate analysis delay
-    setTimeout(() => {
-      // Always succeed in the mockup
-      setStage("success");
-      onSuccess();
-    }, 1500);
+    animationFrameRef.current = requestAnimationFrame(processFrame);
   };
 
   // Retry the captcha
@@ -375,13 +372,31 @@ const FacialCaptchaComponent = ({ onSuccess }: { onSuccess: () => void }) => {
   const handleStart = async () => {
     const cameraInitialized = await initializeCamera();
     if (cameraInitialized) {
+      const sequence = generateExpressionSequence();
+      console.log("Generated sequence:", sequence);
+      sequenceRef.current = sequence;
+      currentIndexRef.current = 0;
+      setExpressionSequence(sequence);
+      setCurrentExpressionIndex(0);
       startDemoSequence();
     }
   };
 
   // Render UI based on current stage
+  if (isModelLoading) {
+    return (
+      <div className="w-full flex flex-col items-center justify-center p-8">
+        <div className="w-12 h-12 border-t-2 border-blue-500 rounded-full animate-spin mb-4"></div>
+        <p className="text-center text-gray-600 dark:text-gray-300">
+          Loading face detection model...
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full flex flex-col items-center">
+      <style>{fadeInAnimation}</style>
       {/* Canvas and video elements */}
       <div className="relative w-full aspect-video max-h-80 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden mb-4">
         {stage === "loading" ? (
@@ -393,10 +408,12 @@ const FacialCaptchaComponent = ({ onSuccess }: { onSuccess: () => void }) => {
           </div>
         ) : (
           <>
-            {/* Hidden video element (for mockup) */}
+            {/* Video element */}
             <video
               ref={videoRef}
-              className="absolute inset-0 w-full h-full object-cover opacity-0"
+              className={`absolute inset-0 w-full h-full object-cover ${
+                stage === "recording" ? "opacity-100" : "opacity-0"
+              }`}
               playsInline
               muted
             />
@@ -404,21 +421,24 @@ const FacialCaptchaComponent = ({ onSuccess }: { onSuccess: () => void }) => {
             {/* Canvas for drawing */}
             <canvas
               ref={canvasRef}
-              className="absolute inset-0 w-full h-full"
+              className={`absolute inset-0 w-full h-full ${
+                stage === "recording" ? "opacity-100" : "opacity-100"
+              }`}
               width={640}
               height={480}
             />
+
+            {/* Green highlight overlay when expression matches */}
+            {isExpressionMatched && stage === "recording" && (
+              <div className="absolute inset-0 border-4 border-green-500 rounded-lg animate-pulse"></div>
+            )}
 
             {/* Expression indicator */}
             {stage === "demo" || stage === "recording" ? (
               <div className="absolute top-4 left-4 bg-black bg-opacity-50 text-white px-3 py-1.5 rounded-full text-sm">
                 {stage === "demo" ? "Demo: " : "Your turn: "}
-                <span className="text-2xl ml-1">
-                  {
-                    expressionEmojis[
-                      expressionSequence[currentExpressionIndex] || "neutral"
-                    ]
-                  }
+                <span className="text-2xl ml-1 transition-all duration-300">
+                  {currentTargetEmoji}
                 </span>
               </div>
             ) : null}
@@ -503,10 +523,10 @@ const FacialCaptchaComponent = ({ onSuccess }: { onSuccess: () => void }) => {
               </svg>
             </div>
             <h3 className="text-lg font-medium mb-2 text-green-700 dark:text-green-300">
-              Verification Successful!
+              Captcha Verified Successfully!
             </h3>
             <p className="text-sm text-green-600 dark:text-green-400">
-              You have successfully completed the facial expression challenge.
+              You have successfully completed the facial verification.
             </p>
           </div>
         )}
@@ -546,6 +566,20 @@ const FacialCaptchaComponent = ({ onSuccess }: { onSuccess: () => void }) => {
           </div>
         )}
       </div>
+      {stage === "recording" && <DebugPanel data={debugData} />}
+      {showSuccess && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 animate-fade-in">
+          <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-xl text-center animate-bounce">
+            <div className="text-8xl mb-4 animate-pulse">✅</div>
+            <h2 className="text-4xl font-bold mb-2 text-green-600 dark:text-green-400 animate-pulse">
+              Captcha Verified Successfully!
+            </h2>
+            <p className="text-2xl text-gray-600 dark:text-gray-300">
+              Confidence: {(debugData.confidence * 100).toFixed(1)}%
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
