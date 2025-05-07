@@ -79,21 +79,23 @@ const processAudio = (req, res) => {
 
     if (Date.now() > challenge.expireAt) {
       challenges.delete(challengeId);
+      // Clear frequency history for this challenge
+      audioUtils.clearFrequencyHistory(challengeId);
       return res.status(400).json({
         success: false,
         message: "Challenge has expired",
       });
     }
 
-    // Process the audio data
+    // Process the audio data - pass challengeId for frequency smoothing
     // The audioData should be an array of Float32Array samples
     // We'll analyze it to extract frequency and amplitude
-    const { frequency, amplitude } = audioUtils.analyzeAudioData(audioData);
+    const result = audioUtils.analyzeAudioData(audioData, 44100, challengeId);
 
-    // Calculate confidence score
-    const tolerance = 0.15; // 15% tolerance
+    // Calculate confidence score with more lenient tolerance (0.25 = 25%)
+    const tolerance = 0.25; // 25% tolerance
     const confidenceScore = audioUtils.calculateMatchConfidence(
-      frequency,
+      result.frequency,
       challenge.frequency,
       tolerance
     );
@@ -102,15 +104,16 @@ const processAudio = (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Audio processed successfully",
-      frequency,
-      amplitude,
+      frequency: result.frequency,
+      amplitude: result.amplitude,
       targetFrequency: challenge.frequency,
       confidenceScore: parseFloat(confidenceScore.toFixed(2)),
       isMatching: audioUtils.isFrequencyMatch(
-        frequency,
+        result.frequency,
         challenge.frequency,
         tolerance
       ),
+      quality: result.quality || "medium",
     });
   } catch (error) {
     console.error("Error processing audio:", error);
@@ -152,14 +155,16 @@ const verifyResponse = (req, res) => {
 
     if (Date.now() > challenge.expireAt) {
       challenges.delete(challengeId);
+      // Clear frequency history
+      audioUtils.clearFrequencyHistory(challengeId);
       return res.status(400).json({
         success: false,
         message: "Challenge has expired",
       });
     }
 
-    // Verify the frequency using our utility function
-    const tolerance = 0.15; // 15% tolerance
+    // Verify the frequency using our utility function with more lenient tolerance
+    const tolerance = 0.25; // 25% tolerance (increased from 15%)
     const isMatch = audioUtils.isFrequencyMatch(
       recordedFrequency,
       challenge.frequency,
@@ -177,6 +182,9 @@ const verifyResponse = (req, res) => {
     challenge.verified = isMatch;
 
     if (isMatch) {
+      // Clear frequency history after successful verification
+      audioUtils.clearFrequencyHistory(challengeId);
+
       return res.status(200).json({
         success: true,
         message: "Audio challenge verified successfully",
@@ -224,6 +232,8 @@ const streamTone = (req, res) => {
 
     if (Date.now() > challenge.expireAt) {
       challenges.delete(id);
+      // Clear frequency history
+      audioUtils.clearFrequencyHistory(id);
       return res.status(400).json({
         success: false,
         message: "Challenge has expired",
@@ -274,6 +284,8 @@ const cleanupExpiredChallenges = () => {
   for (const [id, challenge] of challenges.entries()) {
     if (now > challenge.expireAt) {
       challenges.delete(id);
+      // Clear frequency history for expired challenges
+      audioUtils.clearFrequencyHistory(id);
     }
   }
 };

@@ -51,12 +51,13 @@ const generateToneBuffer = (frequency, duration = 2, sampleRate = 44100) => {
  * @param {number} tolerance - Tolerance percentage (0-1)
  * @returns {boolean} - Whether frequencies match within tolerance
  */
-const isFrequencyMatch = (recorded, expected, tolerance = 0.15) => {
+const isFrequencyMatch = (recorded, expected, tolerance = 0.25) => {
   // If recorded frequency is very low or zero, it's definitely not a match
-  if (recorded < 30) {
+  if (recorded < 20) {
     return false;
   }
 
+  // Use a more lenient tolerance (increased from 0.15 to 0.25 = 25%)
   const allowedDeviation = expected * tolerance;
   return Math.abs(recorded - expected) <= allowedDeviation;
 };
@@ -68,9 +69,9 @@ const isFrequencyMatch = (recorded, expected, tolerance = 0.15) => {
  * @param {number} tolerance - Tolerance percentage (0-1)
  * @returns {number} - Confidence score (0-1)
  */
-const calculateMatchConfidence = (recorded, expected, tolerance = 0.15) => {
+const calculateMatchConfidence = (recorded, expected, tolerance = 0.25) => {
   // If recorded frequency is very low or zero, confidence is zero
-  if (recorded < 30) {
+  if (recorded < 20) {
     return 0;
   }
 
@@ -82,16 +83,34 @@ const calculateMatchConfidence = (recorded, expected, tolerance = 0.15) => {
   }
 
   // Calculate confidence score based on how close the match is
-  return 1 - deviation / allowedDeviation;
+  // Use a non-linear scale to be more forgiving with slight deviations
+  const normalizedDeviation = deviation / allowedDeviation;
+  return Math.pow(1 - normalizedDeviation, 0.7); // Power < 1 makes the curve more lenient
+};
+
+// Recent frequency history for smoothing
+const frequencyHistory = new Map();
+
+/**
+ * Clear frequency history for a specific challenge
+ * @param {string} challengeId - Challenge ID
+ */
+const clearFrequencyHistory = (challengeId) => {
+  frequencyHistory.delete(challengeId);
 };
 
 /**
  * Analyze audio data to extract frequency and amplitude information
  * @param {Float32Array} audioData - Raw audio data from the client
  * @param {number} sampleRate - Sample rate of the audio data (default: 44100)
+ * @param {string} challengeId - Challenge ID for tracking history
  * @returns {Object} - Frequency and amplitude information
  */
-const analyzeAudioData = (audioData, sampleRate = 44100) => {
+const analyzeAudioData = (
+  audioData,
+  sampleRate = 44100,
+  challengeId = null
+) => {
   try {
     // Convert data if it's not already a Float32Array
     const floatData = Array.isArray(audioData)
@@ -150,25 +169,34 @@ const analyzeAudioData = (audioData, sampleRate = 44100) => {
     );
 
     // Take the more reliable result or their average
-    let frequency;
+    let rawFrequency;
     if (autocorrelationFreq > 0 && zeroCrossingFreq > 0) {
       // If both methods detect something, use a weighted average biased toward autocorrelation
-      frequency = Math.round(
+      rawFrequency = Math.round(
         autocorrelationFreq * 0.7 + zeroCrossingFreq * 0.3
       );
     } else {
       // Otherwise use whichever one detected something
-      frequency = Math.round(autocorrelationFreq || zeroCrossingFreq || 0);
+      rawFrequency = Math.round(autocorrelationFreq || zeroCrossingFreq || 0);
     }
 
     // If we still couldn't detect anything but have amplitude, estimate a frequency
-    if (frequency === 0 && maxAmplitude > amplitudeThreshold) {
-      frequency = 200; // Default to a common voice frequency
+    if (rawFrequency === 0 && maxAmplitude > amplitudeThreshold) {
+      rawFrequency = 200; // Default to a common voice frequency
     }
 
     // Apply a simple low-pass filter to prevent unrealistic frequencies
     // Human voice generally stays under 1000 Hz
-    const filteredFreq = frequency > 1000 ? 0 : frequency;
+    let filteredFreq = rawFrequency > 1000 ? 0 : rawFrequency;
+
+    // Smooth the frequency using a moving average if we have a challenge ID
+    if (challengeId) {
+      filteredFreq = smoothFrequency(filteredFreq, challengeId);
+    }
+
+    // Quantize the frequency to further reduce fluctuations
+    // Round to nearest 5Hz
+    filteredFreq = Math.round(filteredFreq / 5) * 5;
 
     // Enhanced amplitude calculation - using a combination of peak and RMS
     const enhancedAmplitude = Math.max(rmsAmplitude * 200, maxAmplitude * 150);
@@ -176,6 +204,7 @@ const analyzeAudioData = (audioData, sampleRate = 44100) => {
     return {
       frequency: filteredFreq,
       amplitude: Math.round(enhancedAmplitude),
+      rawFrequency: rawFrequency, // Include raw value for debugging
       quality: maxAmplitude > 0.01 ? "high" : "medium",
     };
   } catch (error) {
@@ -187,6 +216,52 @@ const analyzeAudioData = (audioData, sampleRate = 44100) => {
       quality: "error",
     };
   }
+};
+
+/**
+ * Smooth frequency values using a moving average
+ * @param {number} frequency - Current frequency reading
+ * @param {string} challengeId - Challenge ID for tracking history
+ * @returns {number} - Smoothed frequency
+ */
+const smoothFrequency = (frequency, challengeId) => {
+  // Initialize history if needed
+  if (!frequencyHistory.has(challengeId)) {
+    frequencyHistory.set(challengeId, []);
+  }
+
+  const history = frequencyHistory.get(challengeId);
+
+  // Add current reading to history (up to 10 readings)
+  history.push(frequency);
+  if (history.length > 10) {
+    history.shift();
+  }
+
+  // If there's only one reading or the frequency is 0, return as is
+  if (history.length === 1 || frequency === 0) {
+    return frequency;
+  }
+
+  // Calculate weighted moving average with more weight to recent readings
+  let weightedSum = 0;
+  let weightSum = 0;
+  const nonZeroValues = history.filter((f) => f > 0);
+
+  // If we have no valid readings, return the current one
+  if (nonZeroValues.length === 0) {
+    return frequency;
+  }
+
+  // Use only non-zero readings for the average
+  for (let i = 0; i < nonZeroValues.length; i++) {
+    // More recent readings get higher weights
+    const weight = 1 + i;
+    weightedSum += nonZeroValues[i] * weight;
+    weightSum += weight;
+  }
+
+  return Math.round(weightedSum / weightSum);
 };
 
 /**
@@ -363,4 +438,5 @@ module.exports = {
   detectFrequencyByZeroCrossing,
   detectFrequencyByAutocorrelation,
   detectFaintFrequency,
+  clearFrequencyHistory,
 };

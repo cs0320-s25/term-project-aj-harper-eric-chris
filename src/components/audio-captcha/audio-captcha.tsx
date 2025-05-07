@@ -61,6 +61,7 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
   // Effect to continuously process audio when microphone is ready
   useEffect(() => {
     if (microphoneReady && challengeId) {
+      console.log("Starting continuous audio processing");
       // Start continuous audio processing (every 100ms for more responsiveness)
       processingIntervalRef.current = setInterval(processAudioData, 100);
 
@@ -196,6 +197,7 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
     console.log("Cleaning up audio resources");
     stopTone();
 
+    // First disconnect any audio nodes
     if (micSourceRef.current) {
       try {
         micSourceRef.current.disconnect();
@@ -205,24 +207,32 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
       }
     }
 
+    // Stop any media streams
     if (streamRef.current) {
       console.log("Stopping audio tracks");
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     }
 
+    // Cancel animations
     if (animationRef.current) {
       console.log("Canceling animation frame");
       cancelAnimationFrame(animationRef.current);
       animationRef.current = null;
     }
 
+    // Clear processing intervals
     if (processingIntervalRef.current) {
       clearInterval(processingIntervalRef.current);
       processingIntervalRef.current = null;
     }
 
+    // Reset audio state
     setMicrophoneReady(false);
+    setAudioAnalyser(null);
+
+    // Do not reset audio context to avoid "The AudioContext was not allowed to start" errors on some browsers
+    // setAudioContext(null);
   };
 
   // Play the demo tone sequence
@@ -244,6 +254,11 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
   // Initialize the microphone
   const initMicrophone = async () => {
     try {
+      // First, clean up any existing audio resources to ensure a fresh start
+      cleanupAudio();
+
+      console.log("Initializing microphone");
+
       // Request microphone access with appropriate constraints for voice detection
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -258,33 +273,35 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
       streamRef.current = stream;
       setMicrophoneAccess(true);
 
-      // Create audio context if it doesn't exist
+      // Create or reuse audio context
+      const ctx =
+        audioContext ||
+        new (window.AudioContext || (window as any).webkitAudioContext)();
       if (!audioContext) {
-        const newAudioContext = new (window.AudioContext ||
-          (window as any).webkitAudioContext)();
-        setAudioContext(newAudioContext);
-
-        // Create analyzer node
-        const analyser = newAudioContext.createAnalyser();
-        analyser.fftSize = 2048; // Larger FFT size for better frequency resolution
-        analyser.smoothingTimeConstant = 0.3; // Less smoothing for more responsive display
-        setAudioAnalyser(analyser);
-
-        // Connect microphone to analyzer
-        const source = newAudioContext.createMediaStreamSource(stream);
-        micSourceRef.current = source;
-        source.connect(analyser);
-
-        // Create data array for analyser
-        audioDataRef.current = new Float32Array(analyser.fftSize);
-
-        // Mark microphone as ready after setup is complete
-        setMicrophoneReady(true);
+        setAudioContext(ctx);
       }
+
+      // Create analyzer node
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 2048; // Larger FFT size for better frequency resolution
+      analyser.smoothingTimeConstant = 0.3; // Less smoothing for more responsive display
+      setAudioAnalyser(analyser);
+
+      // Connect microphone to analyzer
+      const source = ctx.createMediaStreamSource(stream);
+      micSourceRef.current = source;
+      source.connect(analyser);
+
+      // Create data array for analyser
+      audioDataRef.current = new Float32Array(analyser.fftSize);
+
+      // Mark microphone as ready after setup is complete
+      setMicrophoneReady(true);
 
       // Start drawing waveform
       drawWaveform();
 
+      console.log("Microphone initialized successfully");
       return true;
     } catch (error) {
       console.error("Error accessing microphone:", error);
@@ -296,7 +313,12 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
 
   // Process audio data and send to server
   const processAudioData = async () => {
-    if (!audioAnalyser || !audioDataRef.current || !challengeId) {
+    if (
+      !audioAnalyser ||
+      !audioDataRef.current ||
+      !challengeId ||
+      !microphoneReady
+    ) {
       return;
     }
 
@@ -323,6 +345,7 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
       }
     } catch (error) {
       console.error("Error processing audio data:", error);
+      // Don't fail completely on errors, just log them
     }
   };
 
@@ -491,6 +514,9 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
     setShowDebug(!showDebug);
   };
 
+  // Determine if we should show debug info based on microphone state
+  const shouldShowDebug = showDebug && (stage !== "initial" || microphoneReady);
+
   return (
     <div className="w-full">
       <div className="mb-4 overflow-hidden rounded-lg aspect-[2/1] bg-gray-900 relative">
@@ -508,10 +534,10 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
           </div>
         )}
 
-        {/* Frequency display */}
-        {showDebug && stage !== "initial" && (
+        {/* Frequency display - always show when debug is enabled */}
+        {shouldShowDebug && (
           <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white p-2 rounded text-sm font-mono">
-            <div>Target: {toneSequence[0]} Hz</div>
+            {toneSequence.length > 0 && <div>Target: {toneSequence[0]} Hz</div>}
             {/* Always show user frequency when microphone is ready */}
             {microphoneReady && (
               <>
