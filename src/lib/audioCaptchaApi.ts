@@ -80,6 +80,47 @@ export const getAudioFile = async (challengeId: string): Promise<Blob> => {
 };
 
 /**
+ * Process audio data for real-time analysis
+ * @param challengeId - The ID of the challenge
+ * @param audioData - The audio data as Float32Array or number[]
+ * @returns Promise with processed audio data
+ */
+export const processAudio = async (
+  challengeId: string,
+  audioData: Float32Array | number[]
+): Promise<{
+  success: boolean;
+  message: string;
+  frequency: number;
+  amplitude: number;
+  targetFrequency: number;
+  confidenceScore: number;
+  isMatching: boolean;
+  error?: string;
+}> => {
+  try {
+    // Convert Float32Array to regular array for JSON serialization
+    const serializedAudioData = Array.from(audioData);
+
+    const response = await fetch(`${API_BASE_URL}/audio-captcha/process`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        challengeId,
+        audioData: serializedAudioData,
+      }),
+    });
+
+    return await response.json();
+  } catch (error) {
+    console.error("Error processing audio data:", error);
+    throw error;
+  }
+};
+
+/**
  * Verify a user's audio response
  * @param challengeId - The ID of the challenge
  * @param recordedFrequency - The frequency recorded from the user

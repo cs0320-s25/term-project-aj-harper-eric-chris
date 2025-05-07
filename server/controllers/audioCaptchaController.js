@@ -50,6 +50,78 @@ const generateChallenge = (req, res) => {
 };
 
 /**
+ * Process audio data and extract frequency information
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const processAudio = (req, res) => {
+  try {
+    const { challengeId, audioData } = req.body;
+
+    // Validate request
+    if (!challengeId || !audioData) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required parameters: challengeId or audioData",
+      });
+    }
+
+    // Get challenge from storage
+    const challenge = challenges.get(challengeId);
+
+    // Check if challenge exists and is not expired
+    if (!challenge) {
+      return res.status(404).json({
+        success: false,
+        message: "Challenge not found or expired",
+      });
+    }
+
+    if (Date.now() > challenge.expireAt) {
+      challenges.delete(challengeId);
+      return res.status(400).json({
+        success: false,
+        message: "Challenge has expired",
+      });
+    }
+
+    // Process the audio data
+    // The audioData should be an array of Float32Array samples
+    // We'll analyze it to extract frequency and amplitude
+    const { frequency, amplitude } = audioUtils.analyzeAudioData(audioData);
+
+    // Calculate confidence score
+    const tolerance = 0.15; // 15% tolerance
+    const confidenceScore = audioUtils.calculateMatchConfidence(
+      frequency,
+      challenge.frequency,
+      tolerance
+    );
+
+    // Return analyzed data
+    return res.status(200).json({
+      success: true,
+      message: "Audio processed successfully",
+      frequency,
+      amplitude,
+      targetFrequency: challenge.frequency,
+      confidenceScore: parseFloat(confidenceScore.toFixed(2)),
+      isMatching: audioUtils.isFrequencyMatch(
+        frequency,
+        challenge.frequency,
+        tolerance
+      ),
+    });
+  } catch (error) {
+    console.error("Error processing audio:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to process audio data",
+    });
+  }
+};
+
+/**
  * Verify a user's audio captcha response
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
@@ -208,6 +280,7 @@ const cleanupExpiredChallenges = () => {
 
 module.exports = {
   generateChallenge,
+  processAudio,
   verifyResponse,
   streamTone,
 };

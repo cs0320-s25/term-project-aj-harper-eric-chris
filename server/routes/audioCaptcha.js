@@ -11,6 +11,13 @@ const router = express.Router();
 router.get("/generate", audioCaptchaController.generateChallenge);
 
 /**
+ * @route   POST /api/audio-captcha/process
+ * @desc    Process audio data in real-time for frequency analysis
+ * @access  Public
+ */
+router.post("/process", audioCaptchaController.processAudio);
+
+/**
  * @route   POST /api/audio-captcha/verify
  * @desc    Verify a user's audio captcha response
  * @access  Public
