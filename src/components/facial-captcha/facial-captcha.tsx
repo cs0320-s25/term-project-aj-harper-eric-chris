@@ -16,7 +16,7 @@ const expressions: (keyof typeof expressionEmojis)[] = Object.keys(
   expressionEmojis
 ) as any;
 
-const holdDuration = 1000; // time the user most hold the expression (1 second)
+const holdDuration = 500; // time the user most hold the expression (.5 second)
 
 type Props = {
   onSuccess: () => void;
@@ -29,6 +29,9 @@ export default function ExpressionSequence({ onSuccess }: Props) {
   const holdStartTimeRef = useRef<number | null>(null); // time the user started holding the expression
   const currentIndexRef = useRef(0); // current index in the expression sequence
   const sequenceRef = useRef<(keyof typeof expressionEmojis)[]>([]); // random expression sequence
+  const skippedExpressionRef = useRef<Set<keyof typeof expressionEmojis>>(
+    new Set()
+  ); // tracks skipped expressions
 
   const [stage, setStage] = useState<"loading" | "expression" | "success">(
     "loading"
@@ -104,7 +107,7 @@ export default function ExpressionSequence({ onSuccess }: Props) {
 
     const targetExpression = sequenceRef.current[currentIndexRef.current];
     // if top expression matches target expression and with high enough confidence
-    if (expression === targetExpression && confidence > 0.5) {
+    if (expression === targetExpression && confidence > 0.4) {
       if (!holdStartTimeRef.current) {
         holdStartTimeRef.current = Date.now(); // start the timer
       }
@@ -146,6 +149,20 @@ export default function ExpressionSequence({ onSuccess }: Props) {
 
       {stage === "expression" && (
         <>
+          <p
+            style={{
+              fontSize: "20px",
+              fontWeight: "bold",
+              marginTop: "12px",
+              color: "#333",
+            }}
+          >
+            Expression{" "}
+            <span style={{ color: "#4caf50" }}>
+              {currentExpressionIndex + 1}
+            </span>{" "}
+            of {sequenceRef.current.length}
+          </p>
           <p style={{ fontSize: "24px" }}>
             Match this expression:{" "}
             <span style={{ fontSize: "48px" }}>{currentTargetEmoji}</span>
@@ -209,11 +226,6 @@ export default function ExpressionSequence({ onSuccess }: Props) {
           >
             Skip ({skipsLeft} left)
           </button>
-
-          <p>
-            Expression {currentExpressionIndex + 1} of{" "}
-            {sequenceRef.current.length}
-          </p>
         </>
       )}
 
