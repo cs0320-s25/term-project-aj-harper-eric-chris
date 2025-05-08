@@ -123,18 +123,18 @@ export const processAudio = async (
 /**
  * Verify a user's audio response
  * @param challengeId - The ID of the challenge
- * @param recordedFrequency - The frequency recorded from the user
+ * @param recordedFrequencies - The array of frequencies recorded from the user
  * @returns Promise with verification result
  */
 export const verifyAudioResponse = async (
   challengeId: string,
-  recordedFrequency: number
+  recordedFrequencies: number[]
 ): Promise<{
   success: boolean;
   message: string;
   confidenceScore?: number;
   expected?: number;
-  received?: number;
+  received?: number[];
   tolerance?: string;
 }> => {
   try {
@@ -143,7 +143,7 @@ export const verifyAudioResponse = async (
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ challengeId, recordedFrequency }),
+      body: JSON.stringify({ challengeId, recordedFrequencies }),
     });
 
     return await response.json();

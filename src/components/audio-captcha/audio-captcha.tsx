@@ -46,6 +46,8 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
   const audioDataRef = useRef<Float32Array | null>(null);
   const processingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const micSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const recordedFrequenciesRef = useRef<number[]>([]);
+  const isRecordingRef = useRef(false);
 
   // Initialize on mount
   useEffect(() => {
@@ -337,11 +339,15 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
       // Send to server for processing
       const result = await processAudio(challengeId, audioDataRef.current);
 
-      if (result.success) {
-        // Always update with real data from server
-        setUserFrequency(result.frequency);
-        setUserAmplitude(result.amplitude);
-        setConfidenceScore(result.confidenceScore);
+      setUserFrequency(result.frequency);
+      setUserAmplitude(result.amplitude);
+      setConfidenceScore(result.confidenceScore);
+
+      // Store every userFrequency during recording
+      if (isRecordingRef.current && result.frequency > 0) {
+        recordedFrequenciesRef.current.push(result.frequency);
+        // Optionally log
+        // console.log("Stored userFrequency:", result.frequency);
       }
     } catch (error) {
       console.error("Error processing audio data:", error);
@@ -452,22 +458,24 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
   // Start recording
   const startRecording = () => {
     setIsRecording(true);
-
-    // Record for 3 seconds then analyze
+    recordedFrequenciesRef.current = []; // Reset before each recording
+    processingIntervalRef.current = setInterval(processAudioData, 100);
     setTimeout(() => {
       setIsRecording(false);
+      if (processingIntervalRef.current) {
+        clearInterval(processingIntervalRef.current);
+        processingIntervalRef.current = null;
+      }
       analyzeRecording();
-    }, 3000);
+    }, 2000);
   };
 
   // Analyze the recording
   const analyzeRecording = async () => {
     setStage("analyzing");
-
     try {
-      // Send the final frequency for verification
-      const result = await verifyAudioResponse(challengeId, userFrequency);
-
+      console.log("All recorded frequencies:", recordedFrequenciesRef.current);
+      const result = await verifyAudioResponse(challengeId, recordedFrequenciesRef.current);
       if (result.success) {
         setStage("success");
         onSuccess();
@@ -475,7 +483,6 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
         setStage("failure");
       }
     } catch (error) {
-      console.error("Error verifying audio response:", error);
       setStage("failure");
     }
   };
@@ -516,6 +523,10 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
 
   // Determine if we should show debug info based on microphone state
   const shouldShowDebug = showDebug && (stage !== "initial" || microphoneReady);
+
+  useEffect(() => {
+    isRecordingRef.current = isRecording;
+  }, [isRecording]);
 
   return (
     <div className="w-full">

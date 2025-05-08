@@ -131,14 +131,13 @@ const processAudio = (req, res) => {
  */
 const verifyResponse = (req, res) => {
   try {
-    const { challengeId, recordedFrequency } = req.body;
+    const { challengeId, recordedFrequencies } = req.body;
 
     // Validate request
-    if (!challengeId || !recordedFrequency) {
-      return res.status(400).json({
+    if (!challengeId || !recordedFrequencies || !Array.isArray(recordedFrequencies) || recordedFrequencies.length === 0) {
+      return res.status(401).json({
         success: false,
-        message:
-          "Missing required parameters: challengeId or recordedFrequency",
+        message: "Missing required parameters: challengeId or recordedFrequencies",
       });
     }
 
@@ -147,7 +146,7 @@ const verifyResponse = (req, res) => {
 
     // Check if challenge exists and is not expired
     if (!challenge) {
-      return res.status(404).json({
+      return res.status(402).json({
         success: false,
         message: "Challenge not found or expired",
       });
@@ -157,46 +156,48 @@ const verifyResponse = (req, res) => {
       challenges.delete(challengeId);
       // Clear frequency history
       audioUtils.clearFrequencyHistory(challengeId);
-      return res.status(400).json({
+      return res.status(403).json({
         success: false,
         message: "Challenge has expired",
       });
     }
 
-    // Verify the frequency using our utility function with more lenient tolerance
-    const tolerance = 0.25; // 25% tolerance (increased from 15%)
+    // Calculate the average of the recorded frequencies
+    const avgFrequency = recordedFrequencies.reduce((sum, val) => sum + val, 0) / recordedFrequencies.length;
+
+    // Verify if the average frequency matches the challenge frequency within tolerance
+    const tolerance = 0.25; // 25% tolerance
     const isMatch = audioUtils.isFrequencyMatch(
-      recordedFrequency,
+      avgFrequency,
       challenge.frequency,
       tolerance
     );
 
-    // Calculate confidence score
+    // Calculate confidence score for the average
     const confidenceScore = audioUtils.calculateMatchConfidence(
-      recordedFrequency,
+      avgFrequency,
       challenge.frequency,
       tolerance
     );
 
-    // Update challenge status
     challenge.verified = isMatch;
 
     if (isMatch) {
       // Clear frequency history after successful verification
       audioUtils.clearFrequencyHistory(challengeId);
-
       return res.status(200).json({
         success: true,
         message: "Audio challenge verified successfully",
         confidenceScore: parseFloat(confidenceScore.toFixed(2)),
+        average: avgFrequency,
       });
     } else {
       const allowedDeviation = challenge.frequency * tolerance;
-      return res.status(400).json({
+      return res.status(404).json({
         success: false,
         message: "Audio response does not match the challenge",
         expected: challenge.frequency,
-        received: recordedFrequency,
+        received: avgFrequency,
         tolerance: `±${allowedDeviation.toFixed(2)} Hz`,
         confidenceScore: parseFloat(confidenceScore.toFixed(2)),
       });
