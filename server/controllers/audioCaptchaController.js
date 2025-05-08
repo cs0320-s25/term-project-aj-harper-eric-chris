@@ -2,6 +2,9 @@
 const challenges = new Map();
 const audioUtils = require("../utils/audioUtils");
 
+// Add a cache for submitted frequency arrays to prevent replay attacks
+const frequencySubmissionsCache = new Map(); // challengeId -> [{ frequencies: number[], timestamp: number }]
+
 /**
  * Generate a new audio captcha challenge
  * @param {Object} req - Express request object
@@ -140,6 +143,27 @@ const verifyResponse = (req, res) => {
         message: "Missing required parameters: challengeId or recordedFrequencies",
       });
     }
+
+    // Check for replay attack: reject if the same array was submitted for this challengeId in the last 5 minutes
+    const now = Date.now();
+    const cacheWindow = 5 * 60 * 1000; // 5 minutes
+    const cacheEntry = frequencySubmissionsCache.get(challengeId) || [];
+    // Remove expired entries
+    const validEntries = cacheEntry.filter(entry => now - entry.timestamp < cacheWindow);
+    // Check for exact match (same values and order)
+    const isReplay = validEntries.some(entry =>
+      entry.frequencies.length === recordedFrequencies.length &&
+      entry.frequencies.every((val, idx) => val === recordedFrequencies[idx])
+    );
+    if (isReplay) {
+      return res.status(429).json({
+        success: false,
+        message: "Replay attack detected: identical audio frequencies list submitted.",
+      });
+    }
+    // Add this submission to the cache
+    validEntries.push({ frequencies: recordedFrequencies, timestamp: now });
+    frequencySubmissionsCache.set(challengeId, validEntries);
 
     // Get challenge from storage
     const challenge = challenges.get(challengeId);

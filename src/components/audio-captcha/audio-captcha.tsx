@@ -458,10 +458,10 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
   // Start recording
   const startRecording = () => {
     setIsRecording(true);
-    recordedFrequenciesRef.current = []; // Reset before each recording
-    processingIntervalRef.current = setInterval(processAudioData, 100);
+    recordedFrequenciesRef.current = [];
     setTimeout(() => {
       setIsRecording(false);
+      // Stop interval when recording ends
       if (processingIntervalRef.current) {
         clearInterval(processingIntervalRef.current);
         processingIntervalRef.current = null;
@@ -484,6 +484,12 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
       }
     } catch (error) {
       setStage("failure");
+    } finally {
+      // Always stop the processing interval after verification
+      if (processingIntervalRef.current) {
+        clearInterval(processingIntervalRef.current);
+        processingIntervalRef.current = null;
+      }
     }
   };
 
@@ -507,6 +513,8 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
   // Start button handler
   const handleStart = async () => {
     if (await initMicrophone()) {
+      // Start processing audio as soon as Start is clicked
+      processingIntervalRef.current = setInterval(processAudioData, 100);
       playDemoSequence();
     }
   };
