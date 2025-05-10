@@ -1,12 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import {
-  generateAudioChallenge,
-  getAudioTone,
-  processAudio,
-  verifyAudioResponse,
-} from "../../lib/audioCaptchaApi";
+import PitchVisualizer from "./PitchVisualizer";
+import { defaultToneDetector, DetectionResult } from "../../lib/toneDetector";
 
 interface AudioCaptchaProps {
   onSuccess: () => void;
@@ -15,7 +11,7 @@ interface AudioCaptchaProps {
 const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
   // State for challenge data
   const [challengeId, setChallengeId] = useState<string>("");
-  const [toneSequence, setToneSequence] = useState<number[]>([]);
+  const [targetFrequency, setTargetFrequency] = useState<number>(0);
   const [currentToneIndex, setCurrentToneIndex] = useState(0);
 
   // State for microphone and audio context
@@ -27,26 +23,42 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
 
   // State for challenge progress
   const [stage, setStage] = useState<
-    "initial" | "demo" | "recording" | "analyzing" | "success" | "failure"
+    | "initial"
+    | "demo"
+    | "recording"
+    | "analyzing"
+    | "success"
+    | "failure"
+    | "bot-detected"
   >("initial");
 
+  // Additional state for error messages
+  const [failureMessage, setFailureMessage] = useState<string>("");
+  const [botDetectionReason, setBotDetectionReason] = useState<string>("");
+
+  // Tone detection results
+  const [detectionResult, setDetectionResult] = useState<DetectionResult>({
+    frequency: 0,
+    amplitude: 0,
+    confidenceScore: 0,
+    isBotLike: false,
+  });
+
   // Debug information
-  const [showDebug, setShowDebug] = useState(true);
-  const [userFrequency, setUserFrequency] = useState<number>(0);
-  const [userAmplitude, setUserAmplitude] = useState<number>(0);
-  const [confidenceScore, setConfidenceScore] = useState<number>(0);
-  const [lastProcessedAt, setLastProcessedAt] = useState<number>(0);
+  const [showDebug, setShowDebug] = useState(false);
+  const [recordingTimeLeft, setRecordingTimeLeft] = useState<number>(0);
 
   // Refs
   const oscillatorRef = useRef<OscillatorNode | null>(null);
   const gainNodeRef = useRef<GainNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const animationRef = useRef<number | null>(null);
   const audioDataRef = useRef<Float32Array | null>(null);
   const processingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const matchStartTimeRef = useRef<number | null>(null);
   const micSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const recordedFrequenciesRef = useRef<number[]>([]);
+  const recordedResultsRef = useRef<DetectionResult[]>([]);
   const isRecordingRef = useRef(false);
 
   // Initialize on mount
@@ -62,11 +74,10 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
 
   // Effect to continuously process audio when microphone is ready
   useEffect(() => {
-    if (microphoneReady && challengeId) {
+    if (microphoneReady && stage === "recording") {
       console.log("Starting continuous audio processing");
-      // Reduce the frequency of processing from 100ms to 300ms
-      // This is still responsive enough for voice detection but puts less load on the server
-      processingIntervalRef.current = setInterval(processAudioData, 300);
+      // Process audio at a reasonable interval
+      processingIntervalRef.current = setInterval(processAudioData, 50);
 
       // Return cleanup function
       return () => {
@@ -76,20 +87,50 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
         }
       };
     }
-  }, [microphoneReady, challengeId]);
+  }, [microphoneReady, stage]);
+
+  // Effect to track when the user is maintaining the target pitch
+  useEffect(() => {
+    // Only check during recording
+    if (!isRecording) {
+      matchStartTimeRef.current = null;
+      return;
+    }
+
+    // Check if current frequency matches the target
+    if (
+      defaultToneDetector.isFrequencyMatch(
+        detectionResult.frequency,
+        targetFrequency
+      )
+    ) {
+      // If this is the start of a matching period, record the time
+      if (matchStartTimeRef.current === null) {
+        matchStartTimeRef.current = Date.now();
+      }
+      // If they've been matching for 2 seconds, end recording successfully
+      else if (Date.now() - matchStartTimeRef.current >= 2000) {
+        console.log("User maintained pitch for 2 seconds - ending recording");
+        stopRecording(true);
+      }
+    } else {
+      // Reset the match timer if they go off pitch
+      matchStartTimeRef.current = null;
+    }
+  }, [detectionResult.frequency, isRecording, targetFrequency]);
 
   // Initialize a new challenge
   const initChallenge = async () => {
     try {
-      // Generate a new challenge
-      const challenge = await generateAudioChallenge();
-      setChallengeId(challenge.challengeId);
+      // Generate a random challenge ID
+      const randomId = Math.random().toString(36).substring(2, 15);
+      setChallengeId(randomId);
 
-      // Get the tone data
-      const toneData = await getAudioTone(challenge.challengeId);
-      setToneSequence([toneData.frequency]);
+      // Generate a random tone frequency
+      const randomFrequency = defaultToneDetector.generateRandomTone();
+      setTargetFrequency(randomFrequency);
 
-      console.log(`Generated tone with frequency: ${toneData.frequency}Hz`);
+      console.log(`Generated challenge with frequency: ${randomFrequency}Hz`);
     } catch (error) {
       console.error("Error initializing challenge:", error);
       setStage("failure");
@@ -98,27 +139,25 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
 
   // Function to play a tone
   const playTone = (frequency: number, duration = 1000) => {
-    if (!audioContext) {
-      const newAudioContext = new (window.AudioContext ||
-        (window as any).webkitAudioContext)();
-      setAudioContext(newAudioContext);
+    try {
+      // Create a new temporary audio context for playing tones if needed
+      const ctx =
+        audioContext ||
+        new (window.AudioContext || (window as any).webkitAudioContext)();
+      if (!audioContext) {
+        setAudioContext(ctx);
+      }
 
-      const oscillator = newAudioContext.createOscillator();
+      const oscillator = ctx.createOscillator();
       oscillator.type = "sine";
-      oscillator.frequency.setValueAtTime(
-        frequency,
-        newAudioContext.currentTime
-      );
+      oscillator.frequency.setValueAtTime(frequency, ctx.currentTime);
 
-      const gainNode = newAudioContext.createGain();
-      gainNode.gain.setValueAtTime(0, newAudioContext.currentTime);
-      gainNode.gain.linearRampToValueAtTime(
-        0.5,
-        newAudioContext.currentTime + 0.1
-      );
+      const gainNode = ctx.createGain();
+      gainNode.gain.setValueAtTime(0, ctx.currentTime);
+      gainNode.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 0.1);
 
       oscillator.connect(gainNode);
-      gainNode.connect(newAudioContext.destination);
+      gainNode.connect(ctx.destination);
 
       oscillator.start();
       gainNodeRef.current = gainNode;
@@ -127,49 +166,18 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
       // Schedule the tone to stop
       gainNode.gain.setValueAtTime(
         0.5,
-        newAudioContext.currentTime + duration / 1000 - 0.1
+        ctx.currentTime + duration / 1000 - 0.1
       );
       gainNode.gain.linearRampToValueAtTime(
         0,
-        newAudioContext.currentTime + duration / 1000
+        ctx.currentTime + duration / 1000
       );
 
       setTimeout(() => {
         stopTone();
       }, duration);
-    } else {
-      // Reuse existing audio context
-      const oscillator = audioContext.createOscillator();
-      oscillator.type = "sine";
-      oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
-
-      const gainNode = audioContext.createGain();
-      gainNode.gain.setValueAtTime(0, audioContext.currentTime);
-      gainNode.gain.linearRampToValueAtTime(
-        0.5,
-        audioContext.currentTime + 0.1
-      );
-
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-
-      oscillator.start();
-      gainNodeRef.current = gainNode;
-      oscillatorRef.current = oscillator;
-
-      // Schedule the tone to stop
-      gainNode.gain.setValueAtTime(
-        0.5,
-        audioContext.currentTime + duration / 1000 - 0.1
-      );
-      gainNode.gain.linearRampToValueAtTime(
-        0,
-        audioContext.currentTime + duration / 1000
-      );
-
-      setTimeout(() => {
-        stopTone();
-      }, duration);
+    } catch (error) {
+      console.error("Error playing tone:", error);
     }
   };
 
@@ -217,38 +225,44 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
       streamRef.current = null;
     }
 
-    // Cancel animations
-    if (animationRef.current) {
-      console.log("Canceling animation frame");
-      cancelAnimationFrame(animationRef.current);
-      animationRef.current = null;
-    }
-
     // Clear processing intervals
     if (processingIntervalRef.current) {
       clearInterval(processingIntervalRef.current);
       processingIntervalRef.current = null;
     }
 
+    // Clear recording timer
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+
     // Reset audio state
     setMicrophoneReady(false);
     setAudioAnalyser(null);
+    setDetectionResult({
+      frequency: 0,
+      amplitude: 0,
+      confidenceScore: 0,
+      isBotLike: false,
+    });
+    setRecordingTimeLeft(0);
+    matchStartTimeRef.current = null;
 
     // Do not reset audio context to avoid "The AudioContext was not allowed to start" errors on some browsers
     // setAudioContext(null);
   };
 
-  // Play the demo tone sequence
+  // Play the demo tone sequence - this no longer initializes the microphone
   const playDemoSequence = () => {
     setStage("demo");
     setCurrentToneIndex(0);
 
-    // Play each tone in sequence
-    if (toneSequence.length > 0) {
-      playTone(toneSequence[0], 2000);
-    }
+    // Play the target tone
+    playTone(targetFrequency, 2000);
 
-    // After demo finishes, prompt user to record
+    // After demo finishes, set the stage to recording so user can click record button
+    // but don't start recording or initialize mic yet
     setTimeout(() => {
       setStage("recording");
     }, 2500);
@@ -301,9 +315,6 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
       // Mark microphone as ready after setup is complete
       setMicrophoneReady(true);
 
-      // Start drawing waveform
-      drawWaveform();
-
       console.log("Microphone initialized successfully");
       return true;
     } catch (error) {
@@ -314,58 +325,35 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
     }
   };
 
-  // Process audio data and send to server
-  const processAudioData = async () => {
-    if (
-      !audioAnalyser ||
-      !audioDataRef.current ||
-      !challengeId ||
-      !microphoneReady
-    ) {
+  // Process audio data using our toneDetector
+  const processAudioData = () => {
+    if (!audioAnalyser || !audioDataRef.current || !microphoneReady) {
       return;
     }
 
     try {
-      // Rate limit processing to avoid overwhelming the server
-      const now = Date.now();
-      // Increase the throttling interval - only send data every 250ms
-      // This is more than enough for a voice-based captcha and reduces server load
-      if (now - lastProcessedAt < 250) {
-        return;
-      }
-      setLastProcessedAt(now);
-
       // Get audio data from analyzer
       audioAnalyser.getFloatTimeDomainData(audioDataRef.current);
 
-      // Only send to server if we're recording or have significant amplitude
-      // Check for non-silence before sending data to the server
-      let hasSoundData = false;
-      let maxAmplitude = 0;
-      for (let i = 0; i < audioDataRef.current.length; i++) {
-        const abs = Math.abs(audioDataRef.current[i]);
-        if (abs > maxAmplitude) {
-          maxAmplitude = abs;
-        }
-        if (abs > 0.05) {
-          // Sound detection threshold
-          hasSoundData = true;
-          break;
-        }
-      }
+      // Process the audio data with our tone detector
+      const result = defaultToneDetector.processAudioData(audioDataRef.current);
 
-      // Only process if there's actual sound or we're recording
-      if (hasSoundData || isRecordingRef.current) {
-        // Send to server for processing
-        const result = await processAudio(challengeId, audioDataRef.current);
+      // Update state with the result
+      setDetectionResult(result);
 
-        setUserFrequency(result.frequency);
-        setUserAmplitude(result.amplitude);
-        setConfidenceScore(result.confidenceScore);
+      // During recording, store all detection results
+      if (isRecordingRef.current && result.frequency > 0) {
+        recordedFrequenciesRef.current.push(result.frequency);
+        recordedResultsRef.current.push(result);
 
-        // Store every userFrequency during recording
-        if (isRecordingRef.current && result.frequency > 0) {
-          recordedFrequenciesRef.current.push(result.frequency);
+        // If bot-like behavior is detected, stop recording and mark as failure
+        if (result.isBotLike) {
+          console.log("Bot-like behavior detected:", result.botLikeReason);
+          setBotDetectionReason(
+            result.botLikeReason || "Synthetic audio detected"
+          );
+          stopRecording(false);
+          setStage("bot-detected");
         }
       }
     } catch (error) {
@@ -374,144 +362,135 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
     }
   };
 
-  // Draw a waveform visualization
-  const drawWaveform = () => {
-    if (!canvasRef.current) return;
-
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    // Set up canvas for drawing
-    ctx.fillStyle = "#1e1e2f"; // Dark blue background
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    const draw = () => {
-      // Clear the canvas
-      ctx.fillStyle = "#1e1e2f";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      // Draw time grid
-      ctx.strokeStyle = "#333344";
-      ctx.lineWidth = 1;
-
-      const gridSize = 30;
-      for (let x = 0; x < canvas.width; x += gridSize) {
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, canvas.height);
-        ctx.stroke();
+  // Start recording - now also initializes microphone
+  const startRecording = async () => {
+    // Make sure microphone is initialized before recording
+    if (!microphoneReady) {
+      const micInitialized = await initMicrophone();
+      if (!micInitialized) {
+        return; // Failed to initialize microphone
       }
 
-      for (let y = 0; y < canvas.height; y += gridSize) {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(canvas.width, y);
-        ctx.stroke();
-      }
+      // Give a small delay after mic initialization before starting to record
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
 
-      // Draw waveform
-      ctx.strokeStyle = isRecording ? "#4CAF50" : "#2196F3";
-      ctx.lineWidth = 3;
-      ctx.beginPath();
+    // Reset recording state
+    recordedFrequenciesRef.current = [];
+    recordedResultsRef.current = [];
+    matchStartTimeRef.current = null;
+    setIsRecording(true);
 
-      // Always draw waveform data when microphone is ready
-      if (audioAnalyser && audioDataRef.current && microphoneReady) {
-        // Get the latest audio data
-        audioAnalyser.getFloatTimeDomainData(audioDataRef.current);
+    // Set up a countdown from 10 seconds
+    const maxRecordingTime = 10; // seconds
+    setRecordingTimeLeft(maxRecordingTime);
 
-        const bufferLength = audioDataRef.current.length;
-        const centerY = canvas.height / 2;
-        const sliceWidth = canvas.width / bufferLength;
+    // Start countdown timer
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+    }
 
-        // Enhance the waveform visualization
-        const amplificationFactor = isRecording ? 3.0 : 2.0; // Amplify the waveform
-
-        ctx.moveTo(0, centerY);
-
-        for (let i = 0; i < bufferLength; i += 4) {
-          // Skip some samples for performance
-          const x = i * sliceWidth;
-          const v = audioDataRef.current[i] * amplificationFactor;
-          const y = centerY + (v * canvas.height) / 2; // Scale to fit canvas
-
-          if (i === 0) {
-            ctx.moveTo(x, y);
-          } else {
-            ctx.lineTo(x, y);
-          }
+    recordingTimerRef.current = setInterval(() => {
+      setRecordingTimeLeft((prev) => {
+        const newTime = prev - 1;
+        if (newTime <= 0) {
+          // Time's up, stop recording
+          stopRecording(false);
+          return 0;
         }
-      } else {
-        // Draw simulated waveform when not recording
-        const centerY = canvas.height / 2;
-        const amplitude = 20;
-        const step = 5;
-        const time = Date.now() / 1000;
+        return newTime;
+      });
+    }, 1000);
 
-        ctx.moveTo(0, centerY);
-
-        for (let x = 0; x < canvas.width; x += step) {
-          // Create a simpler waveform
-          const y = centerY + Math.sin(x * 0.01 + time * 2) * amplitude;
-
-          ctx.lineTo(x, y);
-        }
+    // Set a maximum recording time of 10 seconds
+    setTimeout(() => {
+      if (isRecordingRef.current) {
+        console.log("Maximum recording time reached");
+        stopRecording(false);
       }
-
-      ctx.stroke();
-
-      // Draw frequency indicator on the waveform during recording
-      if (isRecording && userFrequency > 0) {
-        ctx.fillStyle = "#ffffff";
-        ctx.font = "16px monospace";
-        ctx.fillText(`Detected: ${Math.round(userFrequency)} Hz`, 10, 25);
-      }
-
-      // Continue animation
-      animationRef.current = requestAnimationFrame(draw);
-    };
-
-    draw();
+    }, maxRecordingTime * 1000);
   };
 
-  // Start recording
-  const startRecording = () => {
-    setIsRecording(true);
-    recordedFrequenciesRef.current = [];
-    setTimeout(() => {
-      setIsRecording(false);
-      // Stop interval when recording ends
-      if (processingIntervalRef.current) {
-        clearInterval(processingIntervalRef.current);
-        processingIntervalRef.current = null;
-      }
-      analyzeRecording();
-    }, 2000);
+  // Stop recording and proceed to analysis
+  const stopRecording = (matchAchieved: boolean) => {
+    // Clear recording timer
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+
+    setIsRecording(false);
+    setRecordingTimeLeft(0);
+
+    // If recording was stopped because match was achieved, we can use that information
+    if (matchAchieved) {
+      console.log("Recording stopped - user achieved sustained match");
+    }
+
+    // Proceed to analysis
+    analyzeRecording(matchAchieved);
   };
 
   // Analyze the recording
-  const analyzeRecording = async () => {
+  const analyzeRecording = (matchAchieved: boolean) => {
     setStage("analyzing");
+
     try {
       console.log("All recorded frequencies:", recordedFrequenciesRef.current);
-      const result = await verifyAudioResponse(
-        challengeId,
-        recordedFrequenciesRef.current
-      );
-      if (result.success) {
+
+      // Check for bot-like behavior in the entire recording
+      const botResults = recordedResultsRef.current.filter((r) => r.isBotLike);
+      if (botResults.length > 0) {
+        // Bot detected
+        console.log("Bot detected:", botResults[0].botLikeReason);
+        setBotDetectionReason(
+          botResults[0].botLikeReason || "Synthetic audio detected"
+        );
+        setStage("bot-detected");
+        return;
+      }
+
+      // If we already know the match was achieved, go straight to success
+      if (matchAchieved) {
+        setStage("success");
+        onSuccess();
+        return;
+      }
+
+      // Otherwise, do a more thorough analysis of the recording
+      // Check if there are at least 3 consecutive matching frequencies
+      let consecutiveMatches = 0;
+      let maxConsecutiveMatches = 0;
+
+      for (const freq of recordedFrequenciesRef.current) {
+        if (defaultToneDetector.isFrequencyMatch(freq, targetFrequency)) {
+          consecutiveMatches++;
+          maxConsecutiveMatches = Math.max(
+            maxConsecutiveMatches,
+            consecutiveMatches
+          );
+        } else {
+          consecutiveMatches = 0;
+        }
+      }
+
+      // Need at least 3 consecutive matching samples for a success
+      if (maxConsecutiveMatches >= 3) {
         setStage("success");
         onSuccess();
       } else {
+        setFailureMessage(
+          "We couldn't match your tone with the expected frequency"
+        );
         setStage("failure");
       }
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Error during verification:", error);
+      setFailureMessage("An error occurred during verification");
       setStage("failure");
     } finally {
-      // Always stop the processing interval after verification
-      if (processingIntervalRef.current) {
-        clearInterval(processingIntervalRef.current);
-        processingIntervalRef.current = null;
-      }
+      // Always stop the processing interval and clean up audio after verification
+      cleanupAudio();
     }
   };
 
@@ -523,27 +502,28 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
     // Reset state
     setStage("initial");
     setCurrentToneIndex(0);
-    setUserFrequency(0);
-    setUserAmplitude(0);
-    setConfidenceScore(0);
+    setDetectionResult({
+      frequency: 0,
+      amplitude: 0,
+      confidenceScore: 0,
+      isBotLike: false,
+    });
     setIsRecording(false);
+    setRecordingTimeLeft(0);
 
     // Initialize a new challenge
     initChallenge();
   };
 
-  // Start button handler
+  // Start button handler - no longer initializes microphone
   const handleStart = async () => {
-    if (await initMicrophone()) {
-      // Start processing audio as soon as Start is clicked
-      processingIntervalRef.current = setInterval(processAudioData, 100);
-      playDemoSequence();
-    }
+    // Just play the demo sequence without initializing mic
+    playDemoSequence();
   };
 
-  // Record button handler
-  const handleRecord = () => {
-    startRecording();
+  // Record button handler - now handles microphone initialization
+  const handleRecord = async () => {
+    await startRecording();
   };
 
   // Toggle debug display
@@ -551,9 +531,7 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
     setShowDebug(!showDebug);
   };
 
-  // Determine if we should show debug info based on microphone state
-  const shouldShowDebug = showDebug && (stage !== "initial" || microphoneReady);
-
+  // Update the recording ref when state changes
   useEffect(() => {
     isRecordingRef.current = isRecording;
   }, [isRecording]);
@@ -561,34 +539,40 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
   return (
     <div className="w-full">
       <div className="mb-4 overflow-hidden rounded-lg aspect-[2/1] bg-gray-900 relative">
-        <canvas
-          ref={canvasRef}
-          className="w-full h-full"
-          width={600}
-          height={300}
-        />
+        {/* Use the PitchVisualizer component */}
+        <div className="w-full h-full">
+          <PitchVisualizer
+            userFrequency={detectionResult.frequency}
+            targetFrequency={targetFrequency || 0}
+            isRecording={isRecording}
+            stage={stage}
+          />
+        </div>
 
-        {/* Recording indicator */}
+        {/* Recording indicator with countdown */}
         {isRecording && (
-          <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded-full text-xs animate-pulse">
-            Recording...
+          <div className="absolute top-2 right-2 bg-red-500 text-white px-3 py-1 rounded-full text-xs flex items-center">
+            <span className="animate-pulse mr-1">●</span>
+            <span>
+              Recording {recordingTimeLeft > 0 ? `(${recordingTimeLeft}s)` : ""}
+            </span>
           </div>
         )}
 
         {/* Frequency display - always show when debug is enabled */}
-        {shouldShowDebug && (
+        {showDebug && (stage === "recording" || stage === "analyzing") && (
           <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white p-2 rounded text-sm font-mono">
-            {toneSequence.length > 0 && <div>Target: {toneSequence[0]} Hz</div>}
-            {/* Always show user frequency when microphone is ready */}
-            {microphoneReady && (
-              <>
-                <div>User: {Math.round(userFrequency)} Hz</div>
-                <div>Amplitude: {Math.round(userAmplitude)}</div>
-                {/* Show confidence when recording or analyzing */}
-                {(stage === "recording" || stage === "analyzing") && (
-                  <div>Confidence: {(confidenceScore * 100).toFixed(1)}%</div>
-                )}
-              </>
+            {targetFrequency > 0 && <div>Target: {targetFrequency} Hz</div>}
+            <div>User: {Math.round(detectionResult.frequency)} Hz</div>
+            <div>Amplitude: {detectionResult.amplitude.toFixed(3)}</div>
+            <div>
+              Confidence: {(detectionResult.confidenceScore * 100).toFixed(1)}%
+            </div>
+            {stage === "recording" && matchStartTimeRef.current && (
+              <div>
+                Match held:{" "}
+                {((Date.now() - matchStartTimeRef.current) / 1000).toFixed(1)}s
+              </div>
             )}
           </div>
         )}
@@ -626,8 +610,9 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
           <div>
             <div className="bg-green-50 dark:bg-green-900 p-4 rounded-md mb-4">
               <p className="text-sm text-green-700 dark:text-green-300">
-                <span className="font-semibold">Your turn:</span> Now try to
-                mimic the tone you just heard with your voice.
+                <span className="font-semibold">Your turn:</span> Mimic the tone
+                you just heard. Maintain the correct pitch for 2 seconds to
+                complete the challenge.
               </p>
             </div>
             <button
@@ -635,11 +620,17 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
               className={`w-full ${
                 isRecording
                   ? "bg-red-500 hover:bg-red-600"
+                  : microphoneReady
+                  ? "bg-blue-500 hover:bg-blue-600"
                   : "bg-primary-500 hover:bg-primary-600"
               } text-white py-2 px-4 rounded-md transition-colors`}
               disabled={isRecording}
             >
-              {isRecording ? "Recording..." : "Start Recording"}
+              {isRecording
+                ? `Recording (${recordingTimeLeft}s)`
+                : microphoneReady
+                ? "Record Again"
+                : "Start Recording"}
             </button>
           </div>
         )}
@@ -702,9 +693,10 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
               Verification Failed
             </h3>
             <p className="text-sm text-red-600 dark:text-red-400 mb-4">
-              {microphoneAccess
-                ? "We couldn't match your tone with the expected frequency."
-                : "We couldn't access your microphone."}
+              {failureMessage ||
+                (microphoneAccess
+                  ? "We couldn't match your tone with the expected frequency."
+                  : "We couldn't access your microphone.")}
             </p>
             <button
               onClick={handleRetry}
@@ -714,6 +706,46 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
             </button>
           </div>
         )}
+
+        {stage === "bot-detected" && (
+          <div className="bg-red-50 dark:bg-red-900 p-4 rounded-md text-center">
+            <div className="text-red-500 mb-2">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-12 w-12 mx-auto"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"
+                />
+              </svg>
+            </div>
+            <h3 className="text-lg font-medium mb-2 text-red-700 dark:text-red-300">
+              Verification Failed
+            </h3>
+            <p className="text-sm text-red-600 dark:text-red-400 mb-4">
+              Synthetic/computer-generated audio detected.
+            </p>
+            <p className="text-xs text-red-600 dark:text-red-400 mb-2">
+              Human verification required. Please reload the page to try again.
+            </p>
+          </div>
+        )}
+
+        {/* Debug toggle button */}
+        <div className="text-center mt-2">
+          <button
+            onClick={toggleDebug}
+            className="text-xs text-gray-400 underline"
+          >
+            {showDebug ? "Hide Debug Info" : "Show Debug Info"}
+          </button>
+        </div>
       </div>
     </div>
   );

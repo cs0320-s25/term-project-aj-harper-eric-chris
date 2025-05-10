@@ -137,10 +137,16 @@ const verifyResponse = (req, res) => {
     const { challengeId, recordedFrequencies } = req.body;
 
     // Validate request
-    if (!challengeId || !recordedFrequencies || !Array.isArray(recordedFrequencies) || recordedFrequencies.length === 0) {
+    if (
+      !challengeId ||
+      !recordedFrequencies ||
+      !Array.isArray(recordedFrequencies) ||
+      recordedFrequencies.length === 0
+    ) {
       return res.status(401).json({
         success: false,
-        message: "Missing required parameters: challengeId or recordedFrequencies",
+        message:
+          "Missing required parameters: challengeId or recordedFrequencies",
       });
     }
 
@@ -149,16 +155,20 @@ const verifyResponse = (req, res) => {
     const cacheWindow = 5 * 60 * 1000; // 5 minutes
     const cacheEntry = frequencySubmissionsCache.get(challengeId) || [];
     // Remove expired entries
-    const validEntries = cacheEntry.filter(entry => now - entry.timestamp < cacheWindow);
+    const validEntries = cacheEntry.filter(
+      (entry) => now - entry.timestamp < cacheWindow
+    );
     // Check for exact match (same values and order)
-    const isReplay = validEntries.some(entry =>
-      entry.frequencies.length === recordedFrequencies.length &&
-      entry.frequencies.every((val, idx) => val === recordedFrequencies[idx])
+    const isReplay = validEntries.some(
+      (entry) =>
+        entry.frequencies.length === recordedFrequencies.length &&
+        entry.frequencies.every((val, idx) => val === recordedFrequencies[idx])
     );
     if (isReplay) {
       return res.status(429).json({
         success: false,
-        message: "Replay attack detected: identical audio frequencies list submitted.",
+        message:
+          "Replay attack detected: identical audio frequencies list submitted.",
       });
     }
     // Add this submission to the cache
@@ -186,11 +196,29 @@ const verifyResponse = (req, res) => {
       });
     }
 
+    // NEW: Detect if the audio is synthetic/from a bot
+    const syntheticResult = audioUtils.detectSyntheticAudio(challengeId);
+    if (syntheticResult.isSynthetic) {
+      // Clear frequency history but don't remove the challenge
+      audioUtils.clearFrequencyHistory(challengeId);
+
+      // Return a 403 Forbidden status with a message indicating bot detection
+      return res.status(403).json({
+        success: false,
+        message: "Bot detected. Verification failed.",
+        reason: syntheticResult.reason,
+        isBotDetected: true,
+        // Don't include detailed statistics to avoid helping attackers
+      });
+    }
+
     // Calculate the average of the recorded frequencies
-    const avgFrequency = recordedFrequencies.reduce((sum, val) => sum + val, 0) / recordedFrequencies.length;
+    const avgFrequency =
+      recordedFrequencies.reduce((sum, val) => sum + val, 0) /
+      recordedFrequencies.length;
 
     // Verify if the average frequency matches the challenge frequency within tolerance
-    const tolerance = 0.25; // 25% tolerance
+    const tolerance = 0.1; // Reduced from 0.25 to 0.1 (10% tolerance)
     const isMatch = audioUtils.isFrequencyMatch(
       avgFrequency,
       challenge.frequency,
@@ -204,6 +232,25 @@ const verifyResponse = (req, res) => {
       tolerance
     );
 
+    // Determine what kind of match was made (direct, octave up, or octave down)
+    let matchType = "none";
+    if (
+      Math.abs(avgFrequency - challenge.frequency) <=
+      challenge.frequency * tolerance
+    ) {
+      matchType = "direct";
+    } else if (
+      Math.abs(avgFrequency - challenge.frequency * 2) <=
+      challenge.frequency * 2 * tolerance
+    ) {
+      matchType = "octave_up";
+    } else if (
+      Math.abs(avgFrequency - challenge.frequency / 2) <=
+      (challenge.frequency / 2) * tolerance
+    ) {
+      matchType = "octave_down";
+    }
+
     challenge.verified = isMatch;
 
     if (isMatch) {
@@ -214,6 +261,8 @@ const verifyResponse = (req, res) => {
         message: "Audio challenge verified successfully",
         confidenceScore: parseFloat(confidenceScore.toFixed(2)),
         average: avgFrequency,
+        matchType: matchType,
+        expected: challenge.frequency,
       });
     } else {
       const allowedDeviation = challenge.frequency * tolerance;
@@ -222,7 +271,11 @@ const verifyResponse = (req, res) => {
         message: "Audio response does not match the challenge",
         expected: challenge.frequency,
         received: avgFrequency,
-        tolerance: `±${allowedDeviation.toFixed(2)} Hz`,
+        tolerance: `±${allowedDeviation.toFixed(
+          2
+        )} Hz (also accepts octaves: ${(challenge.frequency / 2).toFixed(
+          1
+        )} Hz and ${(challenge.frequency * 2).toFixed(1)} Hz)`,
         confidenceScore: parseFloat(confidenceScore.toFixed(2)),
       });
     }

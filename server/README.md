@@ -1,266 +1,50 @@
-# MimiCap Captcha Backend
+# MimiCap Audio Captcha
 
-This is the Node.js backend for the MimiCap captcha functionality, including both audio and facial expression challenges.
+## Important Update: Client-Side Processing
 
-## Overview
+This backend is no longer used. We have migrated all audio CAPTCHA functionality to the client-side for improved real-time tone detection and verification.
 
-The backend provides API endpoints for generating and verifying both audio-based and facial expression-based CAPTCHAs:
+## Benefits of Client-Side Processing
 
-- Generating tone-based and facial expression CAPTCHA challenges
-- Verifying user's audio and facial responses to these challenges
-- Streaming tone data for playback in the browser
+- **Reduced Latency**: No network round-trips means immediate feedback for users
+- **Improved Accuracy**: Direct access to Web Audio API for high-fidelity tone detection
+- **Enhanced Privacy**: Audio data never leaves the user's browser
+- **Better Bot Detection**: More sophisticated analysis of audio characteristics
+- **No Backend Dependencies**: Simplified architecture with no server requirements
 
-## Getting Started
+## Implementation Details
 
-### Prerequisites
+The new implementation uses:
 
-- Node.js v14+ installed
-- npm or yarn package manager
+1. **Web Audio API** for capturing and analyzing audio
+2. **YIN Algorithm** for accurate fundamental frequency detection
+3. **Advanced Pattern Analysis** for bot detection
+4. **Local Challenge Generation** for secure verification
 
-### Installation
+See the new `ToneDetectionAndAnalysis.md` file in the root directory for a detailed explanation of the algorithm and implementation.
 
-1. Make sure all dependencies are installed:
+## Frontend Code Architecture
 
-```bash
-npm install
-```
+- `src/lib/toneDetector.ts`: Core tone detection and analysis engine
+- `src/components/audio-captcha/audio-captcha.tsx`: Main CAPTCHA component
+- `src/components/audio-captcha/PitchVisualizer.tsx`: Visualization component
 
-2. Start the development server:
+## Legacy Backend (Deprecated)
 
-```bash
-npm run dev:server
-```
+The original backend code is preserved in this directory for reference purposes but is no longer used in the application.
 
-The server will run on `http://localhost:3001` by default.
-
-## API Endpoints
-
-### Audio Captcha
-
-#### Generate Challenge
+### Original Endpoints (No Longer Active)
 
 ```
 GET /api/audio-captcha/generate
-```
-
-Generates a new audio CAPTCHA challenge.
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "challengeId": "string",
-  "message": "Audio challenge generated successfully"
-}
-```
-
-#### Get Tone
-
-```
 GET /api/audio-captcha/tone/:id
-```
-
-Returns the tone data for a specific challenge.
-
-**Parameters:**
-
-- `id`: Challenge ID
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "frequency": 300,
-  "message": "Tone data retrieved successfully"
-}
-```
-
-#### Verify Response
-
-```
 POST /api/audio-captcha/verify
 ```
 
-Verifies a user's audio response against the challenge.
+## Migration Notes
 
-**Request Body:**
+For any clients previously integrating with this backend, please migrate to the new client-side implementation by:
 
-```json
-{
-  "challengeId": "string",
-  "recordedFrequency": 310
-}
-```
-
-**Response (Success):**
-
-```json
-{
-  "success": true,
-  "message": "Audio challenge verified successfully"
-}
-```
-
-**Response (Failure):**
-
-```json
-{
-  "success": false,
-  "message": "Audio response does not match the challenge",
-  "expected": 300,
-  "received": 400,
-  "tolerance": "±45.00 Hz"
-}
-```
-
-### Facial Expression Captcha
-
-#### Generate Challenge
-
-```
-GET /api/facial-captcha/generate
-```
-
-Generates a new facial expression CAPTCHA challenge.
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "challengeId": "string",
-  "currentExpression": "happy",
-  "totalExpressions": 3,
-  "message": "Facial expression challenge generated successfully"
-}
-```
-
-#### Verify Expression
-
-```
-POST /api/facial-captcha/verify
-```
-
-Verifies a user's facial expression against the current step in the challenge.
-
-**Request Body:**
-
-```json
-{
-  "challengeId": "string",
-  "expressionData": {
-    "expression": "happy",
-    "confidence": 0.75,
-    "timestamp": 1692835256789
-  }
-}
-```
-
-**Response (Success, Challenge Complete):**
-
-```json
-{
-  "success": true,
-  "message": "Facial expression challenge completed successfully",
-  "isComplete": true
-}
-```
-
-**Response (Success, Next Expression):**
-
-```json
-{
-  "success": true,
-  "message": "Expression verified successfully",
-  "isComplete": false,
-  "nextExpression": "sad",
-  "remainingExpressions": 1
-}
-```
-
-**Response (Failure):**
-
-```json
-{
-  "success": false,
-  "message": "Expression not matched with sufficient confidence",
-  "expectedExpression": "happy",
-  "receivedConfidence": 0.3,
-  "requiredConfidence": "easy"
-}
-```
-
-#### Skip Expression
-
-```
-POST /api/facial-captcha/skip
-```
-
-Skips the current expression and provides a new one.
-
-**Request Body:**
-
-```json
-{
-  "challengeId": "string"
-}
-```
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "message": "Expression skipped successfully",
-  "newExpression": "surprised"
-}
-```
-
-#### Get Challenge Status
-
-```
-GET /api/facial-captcha/status/:id
-```
-
-Returns the current status of a facial expression challenge.
-
-**Parameters:**
-
-- `id`: Challenge ID
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "message": "Challenge status retrieved successfully",
-  "currentExpression": "happy",
-  "currentIndex": 0,
-  "totalExpressions": 3,
-  "timeRemaining": 240000
-}
-```
-
-## Security Measures
-
-The backend implements several security features:
-
-1. Rate limiting to prevent brute force attacks
-2. Challenge expiration (5 minutes)
-3. Replay attack protection for both audio and facial responses
-4. Server-side verification of all challenge responses
-5. Tolerance-based verification that adapts to difficulty
-
-## Architecture
-
-The backend uses an in-memory store for challenges in this implementation. In a production environment, you would want to use a database to store challenge data.
-
-## Future Improvements
-
-1. Add database persistence for challenges
-2. Add more complex tone patterns (multiple tones, varying durations)
-3. Implement more facial expression combinations
-4. Add behavioral analysis to detect bots
-5. Add rate limiting and additional security measures on a per-IP basis
+1. Removing any calls to the backend API
+2. Including the new toneDetector.ts file in your project
+3. Using the AudioCaptcha component directly in your UI

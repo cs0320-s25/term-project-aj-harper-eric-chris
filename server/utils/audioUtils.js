@@ -57,9 +57,24 @@ const isFrequencyMatch = (recorded, expected, tolerance = 0.25) => {
     return false;
   }
 
-  // Use a more lenient tolerance (increased from 0.15 to 0.25 = 25%)
+  // First check direct match with tolerance
   const allowedDeviation = expected * tolerance;
-  return Math.abs(recorded - expected) <= allowedDeviation;
+  if (Math.abs(recorded - expected) <= allowedDeviation) {
+    return true;
+  }
+
+  // Check octave matches (double or half the frequency) — only up or down one so that it doesn't unnecessarily accept a bad match.
+  // Check if recorded is an octave up from expected
+  if (Math.abs(recorded - expected * 2) <= expected * 2 * tolerance) {
+    return true;
+  }
+
+  // Check if recorded is an octave down from expected
+  if (Math.abs(recorded - expected / 2) <= (expected / 2) * tolerance) {
+    return true;
+  }
+
+  return false;
 };
 
 /**
@@ -75,21 +90,42 @@ const calculateMatchConfidence = (recorded, expected, tolerance = 0.25) => {
     return 0;
   }
 
+  // Check direct match
   const deviation = Math.abs(recorded - expected);
   const allowedDeviation = expected * tolerance;
 
-  if (deviation > allowedDeviation) {
-    return 0; // No match
+  if (deviation <= allowedDeviation) {
+    // Calculate confidence score based on how close the match is
+    // Use a non-linear scale to be more forgiving with slight deviations
+    const normalizedDeviation = deviation / allowedDeviation;
+    return Math.pow(1 - normalizedDeviation, 0.7); // Power < 1 makes the curve more lenient
   }
 
-  // Calculate confidence score based on how close the match is
-  // Use a non-linear scale to be more forgiving with slight deviations
-  const normalizedDeviation = deviation / allowedDeviation;
-  return Math.pow(1 - normalizedDeviation, 0.7); // Power < 1 makes the curve more lenient
+  // Check octave up match
+  const octaveUpDeviation = Math.abs(recorded - expected * 2);
+  const octaveUpAllowedDeviation = expected * 2 * tolerance;
+
+  if (octaveUpDeviation <= octaveUpAllowedDeviation) {
+    const normalizedDeviation = octaveUpDeviation / octaveUpAllowedDeviation;
+    return Math.pow(1 - normalizedDeviation, 0.7) * 0.95; // Slightly lower confidence for octave matches
+  }
+
+  // Check octave down match
+  const octaveDownDeviation = Math.abs(recorded - expected / 2);
+  const octaveDownAllowedDeviation = (expected / 2) * tolerance;
+
+  if (octaveDownDeviation <= octaveDownAllowedDeviation) {
+    const normalizedDeviation =
+      octaveDownDeviation / octaveDownAllowedDeviation;
+    return Math.pow(1 - normalizedDeviation, 0.7) * 0.95; // Slightly lower confidence for octave matches
+  }
+
+  return 0; // No match
 };
 
-// Recent frequency history for smoothing
-const frequencyHistory = new Map();
+// Recent frequency history for smoothing and bot detection
+const frequencyHistory = new Map(); // challengeId -> array of frequency readings
+const frequencyStats = new Map(); // challengeId -> statistics for bot detection
 
 /**
  * Clear frequency history for a specific challenge
@@ -97,6 +133,143 @@ const frequencyHistory = new Map();
  */
 const clearFrequencyHistory = (challengeId) => {
   frequencyHistory.delete(challengeId);
+  frequencyStats.delete(challengeId);
+};
+
+/**
+ * Updates frequency statistics for bot detection
+ * @param {string} challengeId - Challenge ID
+ * @param {number} frequency - Current frequency
+ * @param {number} amplitude - Current amplitude
+ * @returns {Object} - Current statistics
+ */
+const updateFrequencyStats = (challengeId, frequency, amplitude) => {
+  // Initialize stats if needed
+  if (!frequencyStats.has(challengeId)) {
+    frequencyStats.set(challengeId, {
+      frequencies: [],
+      amplitudes: [],
+      freqVariance: 0,
+      ampVariance: 0,
+      jitter: 0,
+      naturalness: 1.0, // 1.0 = natural, 0.0 = synthetic
+      count: 0,
+    });
+  }
+
+  const stats = frequencyStats.get(challengeId);
+
+  // Only use non-zero frequencies for statistics
+  if (frequency > 0) {
+    // Store the frequency and amplitude (limited history)
+    stats.frequencies.push(frequency);
+    stats.amplitudes.push(amplitude);
+
+    // Keep a reasonable history length
+    if (stats.frequencies.length > 20) {
+      stats.frequencies.shift();
+      stats.amplitudes.shift();
+    }
+
+    // Need at least 5 samples to calculate meaningful statistics
+    if (stats.frequencies.length >= 5) {
+      // Calculate frequency variance - natural voice has higher variance
+      const freqMean =
+        stats.frequencies.reduce((sum, f) => sum + f, 0) /
+        stats.frequencies.length;
+      stats.freqVariance = Math.sqrt(
+        stats.frequencies.reduce(
+          (sum, f) => sum + Math.pow(f - freqMean, 2),
+          0
+        ) / stats.frequencies.length
+      );
+
+      // Calculate amplitude variance - natural voice has varying amplitude
+      const ampMean =
+        stats.amplitudes.reduce((sum, a) => sum + a, 0) /
+        stats.amplitudes.length;
+      stats.ampVariance = Math.sqrt(
+        stats.amplitudes.reduce((sum, a) => sum + Math.pow(a - ampMean, 2), 0) /
+          stats.amplitudes.length
+      );
+
+      // Calculate jitter (frequency changes between consecutive samples)
+      let totalJitter = 0;
+      for (let i = 1; i < stats.frequencies.length; i++) {
+        totalJitter += Math.abs(
+          stats.frequencies[i] - stats.frequencies[i - 1]
+        );
+      }
+      stats.jitter = totalJitter / (stats.frequencies.length - 1);
+
+      // Human voices have natural frequency and amplitude variations
+      // Calculate naturalness score (0-1 scale where higher is more human-like)
+      const freqVarianceWeight = 0.4;
+      const ampVarianceWeight = 0.3;
+      const jitterWeight = 0.3;
+
+      // Normalize values based on expected human ranges
+      const normalizedFreqVar = Math.min(stats.freqVariance / 10, 1); // Human voice freq typically varies by ~5-15 Hz
+      const normalizedAmpVar = Math.min(stats.ampVariance / 30, 1); // Human amplitude varies by ~10-50 units
+      const normalizedJitter = Math.min(stats.jitter / 5, 1); // Human jitter typically 2-8 Hz between samples
+
+      stats.naturalness =
+        normalizedFreqVar * freqVarianceWeight +
+        normalizedAmpVar * ampVarianceWeight +
+        normalizedJitter * jitterWeight;
+    }
+
+    stats.count++;
+  }
+
+  return stats;
+};
+
+/**
+ * Detects if the audio is likely from a bot/synthetic source
+ * @param {string} challengeId - Challenge ID
+ * @returns {Object} - Detection result with probability and reason
+ */
+const detectSyntheticAudio = (challengeId) => {
+  if (!frequencyStats.has(challengeId)) {
+    return { isSynthetic: false, confidence: 0, reason: "Insufficient data" };
+  }
+
+  const stats = frequencyStats.get(challengeId);
+
+  // Need sufficient data for reliable detection
+  if (stats.count < 8) {
+    return { isSynthetic: false, confidence: 0, reason: "Insufficient data" };
+  }
+
+  // Calculate bot probability based on naturalness score
+  const botProbability = 1 - stats.naturalness;
+
+  // Determine reason for detection
+  let reason = "Natural human voice detected";
+  if (botProbability > 0.8) {
+    if (stats.freqVariance < 2) {
+      reason = "Unnaturally stable frequency detected";
+    } else if (stats.ampVariance < 5) {
+      reason = "Unnaturally stable amplitude detected";
+    } else if (stats.jitter < 0.5) {
+      reason = "Unnatural voice pattern detected";
+    } else {
+      reason = "Synthetic audio pattern detected";
+    }
+  }
+
+  return {
+    isSynthetic: botProbability > 0.8,
+    confidence: botProbability,
+    reason: reason,
+    stats: {
+      freqVariance: stats.freqVariance,
+      ampVariance: stats.ampVariance,
+      jitter: stats.jitter,
+      naturalness: stats.naturalness,
+    },
+  };
 };
 
 /**
@@ -158,27 +331,44 @@ const analyzeAudioData = (
       };
     }
 
-    // Use a combination of methods for robust detection
+    // Use a combination of improved detection methods
+    // 1. Zero-crossing for quick estimation
     const zeroCrossingFreq = detectFrequencyByZeroCrossing(
       floatData,
       sampleRate
     );
-    const autocorrelationFreq = detectFrequencyByAutocorrelation(
+
+    // 2. Enhanced autocorrelation (more accurate for complex tones)
+    const autocorrelationFreq = detectFrequencyByEnhancedAutocorrelation(
       floatData,
       sampleRate
     );
 
-    // Take the more reliable result or their average
-    let rawFrequency;
-    if (autocorrelationFreq > 0 && zeroCrossingFreq > 0) {
-      // If both methods detect something, use a weighted average biased toward autocorrelation
-      rawFrequency = Math.round(
-        autocorrelationFreq * 0.7 + zeroCrossingFreq * 0.3
-      );
-    } else {
-      // Otherwise use whichever one detected something
-      rawFrequency = Math.round(autocorrelationFreq || zeroCrossingFreq || 0);
+    // 3. YIN algorithm - industry standard pitch detection (more CPU intensive)
+    const yinFreq = detectFrequencyByYIN(floatData, sampleRate);
+
+    // Combine the results with weighted average based on confidence
+    let rawFrequency = 0;
+    let totalWeight = 0;
+
+    // Only include non-zero frequencies in the weighted average
+    if (zeroCrossingFreq > 0) {
+      rawFrequency += zeroCrossingFreq * 1; // Lowest weight
+      totalWeight += 1;
     }
+
+    if (autocorrelationFreq > 0) {
+      rawFrequency += autocorrelationFreq * 2; // Medium weight
+      totalWeight += 2;
+    }
+
+    if (yinFreq > 0) {
+      rawFrequency += yinFreq * 3; // Highest weight
+      totalWeight += 3;
+    }
+
+    // Calculate final frequency or default to 0
+    rawFrequency = totalWeight > 0 ? Math.round(rawFrequency / totalWeight) : 0;
 
     // If we still couldn't detect anything but have amplitude, estimate a frequency
     if (rawFrequency === 0 && maxAmplitude > amplitudeThreshold) {
@@ -195,15 +385,21 @@ const analyzeAudioData = (
     }
 
     // Quantize the frequency to further reduce fluctuations
-    // Round to nearest 5Hz
-    filteredFreq = Math.round(filteredFreq / 5) * 5;
+    // Round to nearest 3Hz for better stability
+    filteredFreq = Math.round(filteredFreq / 3) * 3;
 
     // Enhanced amplitude calculation - using a combination of peak and RMS
     const enhancedAmplitude = Math.max(rmsAmplitude * 200, maxAmplitude * 150);
+    const finalAmplitude = Math.round(enhancedAmplitude);
+
+    // Update frequency stats for bot detection if we have a challenge ID
+    if (challengeId) {
+      updateFrequencyStats(challengeId, filteredFreq, finalAmplitude);
+    }
 
     return {
       frequency: filteredFreq,
-      amplitude: Math.round(enhancedAmplitude),
+      amplitude: finalAmplitude,
       rawFrequency: rawFrequency, // Include raw value for debugging
       quality: maxAmplitude > 0.01 ? "high" : "medium",
     };
@@ -295,46 +491,136 @@ const detectFrequencyByZeroCrossing = (audioData, sampleRate) => {
 };
 
 /**
- * Detect frequency using autocorrelation (more accurate for speech)
+ * Detect frequency using enhanced autocorrelation (more accurate for speech)
  * @param {Float32Array} audioData - Audio data buffer
  * @param {number} sampleRate - Sample rate
  * @returns {number} - Estimated frequency
  */
-const detectFrequencyByAutocorrelation = (audioData, sampleRate) => {
+const detectFrequencyByEnhancedAutocorrelation = (audioData, sampleRate) => {
   const bufferSize = audioData.length;
 
-  // Use only a portion of the buffer for faster calculation
+  // Use a reasonably sized buffer for analysis
   const maxOffset = Math.min(bufferSize, 1024);
 
   // Autocorrelation array
   const acf = new Array(maxOffset).fill(0);
 
-  // Calculate autocorrelation function
+  // Calculate normalized autocorrelation function (NACF)
   for (let offset = 0; offset < maxOffset; offset++) {
     let sum = 0;
+    let sumSq1 = 0;
+    let sumSq2 = 0;
+
     for (let i = 0; i < bufferSize - offset; i++) {
-      sum += audioData[i] * audioData[i + offset];
+      const val1 = audioData[i];
+      const val2 = audioData[i + offset];
+
+      sum += val1 * val2;
+      sumSq1 += val1 * val1;
+      sumSq2 += val2 * val2;
     }
-    acf[offset] = sum;
+
+    // Normalized autocorrelation
+    acf[offset] = sumSq1 && sumSq2 ? sum / Math.sqrt(sumSq1 * sumSq2) : 0;
   }
 
-  // Find the first peak after initial drop (ignore first few values)
-  let maxValue = -Infinity;
-  let maxIndex = 0;
-
-  // Start from a reasonable offset to avoid low-frequency noise
+  // Skip first few values to avoid low-frequency noise
   const startOffset = Math.floor(sampleRate / 1000); // Skip first 1ms
 
-  for (let i = startOffset; i < maxOffset; i++) {
-    if (acf[i] > maxValue) {
-      maxValue = acf[i];
-      maxIndex = i;
+  // Find peaks in autocorrelation
+  const peaks = [];
+  for (let i = startOffset + 1; i < maxOffset - 1; i++) {
+    if (acf[i] > acf[i - 1] && acf[i] > acf[i + 1] && acf[i] > 0.2) {
+      // Threshold for a "significant" peak
+      peaks.push({ index: i, value: acf[i] });
     }
   }
 
-  // If we found a decent peak, calculate frequency
-  if (maxIndex > 0 && maxValue > 0.01) {
-    return Math.round(sampleRate / maxIndex);
+  // Sort peaks by correlation value
+  peaks.sort((a, b) => b.value - a.value);
+
+  // Use the highest peak for frequency estimation
+  if (peaks.length > 0) {
+    return Math.round(sampleRate / peaks[0].index);
+  }
+
+  return 0;
+};
+
+/**
+ * Detect frequency using the YIN algorithm (improved pitch detection)
+ * @param {Float32Array} audioData - Audio data buffer
+ * @param {number} sampleRate - Sample rate
+ * @returns {number} - Estimated frequency
+ */
+const detectFrequencyByYIN = (audioData, sampleRate) => {
+  const bufferSize = audioData.length;
+  const maxPeriod = Math.min(bufferSize / 2, 1024); // Maximum period to check
+
+  // Step 1: Calculate difference function
+  const diff = new Array(maxPeriod).fill(0);
+  for (let tau = 0; tau < maxPeriod; tau++) {
+    for (let i = 0; i < bufferSize - maxPeriod; i++) {
+      const delta = audioData[i] - audioData[i + tau];
+      diff[tau] += delta * delta;
+    }
+  }
+
+  // Step 2: Cumulative normalization
+  const cumulativeMean = new Array(maxPeriod).fill(0);
+  cumulativeMean[0] = 1; // Avoid division by zero
+
+  for (let tau = 1; tau < maxPeriod; tau++) {
+    let sum = 0;
+    for (let i = 0; i < tau; i++) {
+      sum += diff[i];
+    }
+    cumulativeMean[tau] = (diff[tau] * tau) / sum;
+  }
+
+  // Step 3: Find the first minimum below threshold
+  const threshold = 0.15; // Typical YIN threshold
+  let minTau = 0;
+  let minVal = 1.0;
+
+  // Start at a reasonable lower bound to avoid very high frequencies
+  const minPeriod = Math.floor(sampleRate / 1000); // Avoid frequencies above 1000Hz
+
+  for (let tau = minPeriod; tau < maxPeriod; tau++) {
+    if (cumulativeMean[tau] < threshold) {
+      // Earliest point below threshold
+      minTau = tau;
+      minVal = cumulativeMean[tau];
+      break;
+    } else if (cumulativeMean[tau] < minVal) {
+      // Local minimum
+      minTau = tau;
+      minVal = cumulativeMean[tau];
+    }
+  }
+
+  // Step 4: Interpolate for better accuracy
+  if (minTau > 0 && minTau < maxPeriod - 1) {
+    const y1 = cumulativeMean[minTau - 1];
+    const y2 = cumulativeMean[minTau];
+    const y3 = cumulativeMean[minTau + 1];
+
+    // Parabolic interpolation
+    const a = (y3 - 2 * y2 + y1) / 2;
+    const b = (y3 - y1) / 2;
+
+    if (a !== 0) {
+      const correction = -b / (2 * a);
+      minTau += correction;
+    }
+  }
+
+  // Calculate frequency from period
+  const frequency = minTau > 0 ? sampleRate / minTau : 0;
+
+  // Ensure the frequency is in the human voice range
+  if (frequency >= 75 && frequency <= 1000) {
+    return Math.round(frequency);
   }
 
   return 0;
@@ -365,8 +651,18 @@ const detectFaintFrequency = (audioData, sampleRate) => {
     normalizedData[i] = audioData[i] / maxAbs;
   }
 
-  // Try to detect frequency using autocorrelation on normalized data
-  return detectFrequencyByAutocorrelation(normalizedData, sampleRate);
+  // Try each detection method
+  const freqs = [
+    detectFrequencyByEnhancedAutocorrelation(normalizedData, sampleRate),
+    detectFrequencyByYIN(normalizedData, sampleRate),
+  ].filter((f) => f > 0);
+
+  // Return the average of valid frequencies
+  if (freqs.length > 0) {
+    return Math.round(freqs.reduce((sum, f) => sum + f, 0) / freqs.length);
+  }
+
+  return 0;
 };
 
 /**
@@ -436,7 +732,10 @@ module.exports = {
   analyzeAudioData,
   generateWaveformData,
   detectFrequencyByZeroCrossing,
-  detectFrequencyByAutocorrelation,
+  detectFrequencyByEnhancedAutocorrelation,
+  detectFrequencyByYIN,
   detectFaintFrequency,
   clearFrequencyHistory,
+  detectSyntheticAudio,
+  updateFrequencyStats,
 };
