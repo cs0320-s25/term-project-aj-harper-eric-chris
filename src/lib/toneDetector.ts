@@ -68,8 +68,8 @@ export class ToneDetector {
     // Get amplitude
     const amplitude = this.getAmplitude(audioData);
 
-    // Only run frequency detection if we have meaningful audio
-    const noiseFloor = 0.01;
+    // Lower noise floor to better detect quiet humming
+    const noiseFloor = 0.005; // Reduced from 0.015 to detect quieter sounds
     if (amplitude < noiseFloor) {
       return {
         frequency: 0,
@@ -81,6 +81,17 @@ export class ToneDetector {
 
     // Detect the fundamental frequency using YIN algorithm
     const { frequency, confidence } = this.detectPitchYIN(audioData);
+
+    // Lower confidence threshold to be more sensitive
+    const confidenceThreshold = 0.1; // Reduced from 0.2 to accept weaker signals
+    if (confidence < confidenceThreshold) {
+      return {
+        frequency: 0,
+        amplitude,
+        confidenceScore: 0,
+        isBotLike: false,
+      };
+    }
 
     // Update history
     this.recentFrequencies.unshift(frequency);
@@ -94,10 +105,13 @@ export class ToneDetector {
       ? this.checkForBotBehavior(frequency, amplitude)
       : { isBotLike: false };
 
+    // Scale confidence score by amplitude - adjust scaling for quieter sounds
+    const scaledConfidence = confidence * Math.min(1, amplitude * 10); // Increased scaling factor from 5 to 10
+
     return {
       frequency,
       amplitude,
-      confidenceScore: confidence,
+      confidenceScore: scaledConfidence,
       ...botCheckResult,
     };
   }

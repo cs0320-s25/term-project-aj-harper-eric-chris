@@ -45,7 +45,6 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
   });
 
   // Debug information
-  const [showDebug, setShowDebug] = useState(false);
   const [recordingTimeLeft, setRecordingTimeLeft] = useState<number>(0);
 
   // Refs
@@ -338,8 +337,36 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
       // Process the audio data with our tone detector
       const result = defaultToneDetector.processAudioData(audioDataRef.current);
 
-      // Update state with the result
-      setDetectionResult(result);
+      // Apply a low-pass filter to the frequency to reduce jitter and create smoother visualization
+      // Lowered amplitude threshold to detect quieter humming (0.01 -> 0.003)
+      if (result.amplitude > 0.003) {
+        // Update state with the result - implement a simple smoothing mechanism
+        setDetectionResult((prev) => {
+          // If we have a new valid frequency, use weighted average with previous value
+          // to create smoother transitions (70% new value, 30% old value)
+          const smoothedFrequency =
+            result.frequency > 0
+              ? 0.7 * result.frequency +
+                0.3 * (prev.frequency || result.frequency)
+              : prev.frequency;
+
+          return {
+            frequency: smoothedFrequency,
+            amplitude: result.amplitude,
+            confidenceScore: result.confidenceScore,
+            isBotLike: result.isBotLike,
+            botLikeReason: result.botLikeReason,
+          };
+        });
+      } else {
+        // Reset frequency to 0 if amplitude is too low (likely silence)
+        setDetectionResult((prev) => ({
+          ...prev,
+          frequency: 0,
+          amplitude: result.amplitude,
+          confidenceScore: 0,
+        }));
+      }
 
       // During recording, store all detection results
       if (isRecordingRef.current && result.frequency > 0) {
@@ -499,7 +526,7 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
     // Clean up
     cleanupAudio();
 
-    // Reset state
+    // Reset all state
     setStage("initial");
     setCurrentToneIndex(0);
     setDetectionResult({
@@ -510,9 +537,19 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
     });
     setIsRecording(false);
     setRecordingTimeLeft(0);
+    setFailureMessage("");
+    setBotDetectionReason("");
 
-    // Initialize a new challenge
-    initChallenge();
+    // Clear any stored recordings
+    recordedFrequenciesRef.current = [];
+    recordedResultsRef.current = [];
+    matchStartTimeRef.current = null;
+
+    // Generate a completely new challenge with a new target frequency
+    // This ensures it doesn't reuse the previous challenge data
+    setTimeout(() => {
+      initChallenge();
+    }, 100);
   };
 
   // Start button handler - no longer initializes microphone
@@ -524,11 +561,6 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
   // Record button handler - now handles microphone initialization
   const handleRecord = async () => {
     await startRecording();
-  };
-
-  // Toggle debug display
-  const toggleDebug = () => {
-    setShowDebug(!showDebug);
   };
 
   // Update the recording ref when state changes
@@ -556,24 +588,6 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
             <span>
               Recording {recordingTimeLeft > 0 ? `(${recordingTimeLeft}s)` : ""}
             </span>
-          </div>
-        )}
-
-        {/* Frequency display - always show when debug is enabled */}
-        {showDebug && (stage === "recording" || stage === "analyzing") && (
-          <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white p-2 rounded text-sm font-mono">
-            {targetFrequency > 0 && <div>Target: {targetFrequency} Hz</div>}
-            <div>User: {Math.round(detectionResult.frequency)} Hz</div>
-            <div>Amplitude: {detectionResult.amplitude.toFixed(3)}</div>
-            <div>
-              Confidence: {(detectionResult.confidenceScore * 100).toFixed(1)}%
-            </div>
-            {stage === "recording" && matchStartTimeRef.current && (
-              <div>
-                Match held:{" "}
-                {((Date.now() - matchStartTimeRef.current) / 1000).toFixed(1)}s
-              </div>
-            )}
           </div>
         )}
       </div>
@@ -736,16 +750,6 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
             </p>
           </div>
         )}
-
-        {/* Debug toggle button */}
-        <div className="text-center mt-2">
-          <button
-            onClick={toggleDebug}
-            className="text-xs text-gray-400 underline"
-          >
-            {showDebug ? "Hide Debug Info" : "Show Debug Info"}
-          </button>
-        </div>
       </div>
     </div>
   );

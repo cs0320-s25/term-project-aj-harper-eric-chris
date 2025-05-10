@@ -93,10 +93,12 @@ export default function ExpressionSequence({ onSuccess }: Props) {
       setHoldProgress(0);
       return;
     }
-    // map from expression to confidence score
-    const expressionsDetected = detections.expressions as {
-      [key: string]: number;
-    };
+    // Fix type issue by first casting to unknown then to the desired type
+    const expressionsDetected = detections.expressions as unknown as Record<
+      string,
+      number
+    >;
+
     // sorts expressions in order of confidence scores
     const sorted = Object.entries(expressionsDetected).sort(
       (a, b) => b[1] - a[1]
@@ -156,114 +158,103 @@ export default function ExpressionSequence({ onSuccess }: Props) {
   };
 
   return (
-    <div style={{ textAlign: "center", padding: "20px" }}>
-      {stage === "loading" && <p>Loading models...</p>}
+    <div className="flex flex-col items-center justify-center w-full max-w-md mx-auto">
+      {stage === "loading" && (
+        <div className="py-10 text-center">
+          <div className="w-12 h-12 border-t-2 border-blue-500 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-lg">Loading facial recognition models...</p>
+        </div>
+      )}
 
       {stage === "expression" && (
-        <>
-          <div style={{ textAlign: "center" }}>
-            <p style={{ fontSize: "24px", marginBottom: "12px" }}>
-              Match this expression:
-            </p>
-            <div>
-              <div
-                style={{
-                  lineHeight: "1",
-                  marginBottom: "12px",
-                  textTransform: "capitalize",
-                }}
-              >
-                <span style={{ fontSize: "48px" }}>{currentTargetEmoji} </span>
-                <span style={{ fontSize: "24px" }}>
+        <div className="flex flex-col items-center w-full">
+          <div className="text-center mb-4">
+            <p className="text-xl font-medium mb-2">Match this expression:</p>
+            <div className="bg-gray-800 text-white py-3 px-6 rounded-lg inline-block">
+              <div className="flex items-center justify-center space-x-3">
+                <span className="text-5xl">{currentTargetEmoji}</span>
+                <span className="text-xl capitalize">
                   {sequenceRef.current[currentIndexRef.current]}
                 </span>
               </div>
             </div>
           </div>
-          <video
-            ref={videoRef}
-            autoPlay
-            muted
-            width={400}
-            height={300}
-            style={{ borderRadius: "8px" }}
-          />
-          <div
-            style={{
-              width: "400px",
-              height: "10px",
-              backgroundColor: "#eee",
-              margin: "10px auto",
-              borderRadius: "5px",
-            }}
-            role="progressbar"
-            aria-valuenow={holdProgress}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-label="Expression hold progress"
-          >
-            <div
-              style={{
-                width: `${holdProgress}%`,
-                height: "100%",
-                backgroundColor: "#4caf50",
-                borderRadius: "5px",
-                transition: "width 100ms linear",
-              }}
+
+          {/* Video container */}
+          <div className="relative w-full max-w-md rounded-lg overflow-hidden shadow-lg">
+            <video
+              ref={videoRef}
+              autoPlay
+              muted
+              style={{ width: "100%", height: "auto", objectFit: "cover" }}
+              className="rounded-lg"
             />
+
+            {/* Progress bar positioned directly below the video */}
+            <div className="mt-3 w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700 overflow-hidden">
+              <div
+                className="bg-green-600 h-2.5 rounded-full transition-all duration-100"
+                style={{ width: `${holdProgress}%` }}
+                role="progressbar"
+                aria-valuenow={holdProgress}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label="Expression hold progress"
+              />
+            </div>
           </div>
-          <p
-            style={{
-              fontSize: "20px",
-              fontWeight: "bold",
-              marginTop: "12px",
-              color: "#333",
-            }}
-          >
-            Expression{" "}
-            <span style={{ color: "#4caf50" }}>
-              {currentExpressionIndex + 1}
-            </span>{" "}
-            of {sequenceRef.current.length}
-          </p>
-          <button
-            onClick={() => {
-              if (skipsLeft > 0) {
-                let newExpr: keyof typeof expressionEmojis;
-                const currentExpr =
-                  sequenceRef.current[currentIndexRef.current];
-                skippedExpressionRef.current.add(currentExpr); // Mark the current as skipped
 
-                do {
-                  newExpr =
-                    expressions[Math.floor(Math.random() * expressions.length)];
-                } while (skippedExpressionRef.current.has(newExpr)); // Avoid skipped ones
+          <div className="mt-4 text-center">
+            <p className="text-lg font-medium mb-2">
+              Expression{" "}
+              <span className="text-green-600 font-bold">
+                {currentExpressionIndex + 1}
+              </span>{" "}
+              of {sequenceRef.current.length}
+            </p>
 
-                sequenceRef.current[currentIndexRef.current] = newExpr;
-                setCurrentTargetEmoji(expressionEmojis[newExpr]);
-                holdStartTimeRef.current = null;
-                setHoldProgress(0);
-                setSkipsLeft((prev) => prev - 1);
-              }
-            }}
-            disabled={skipsLeft <= 0}
-            style={{
-              marginTop: "10px",
-              padding: "8px 16px",
-              fontSize: "16px",
-              borderRadius: "6px",
-              border: "none",
-              backgroundColor: skipsLeft > 0 ? "#ccc" : "#888",
-              color: skipsLeft > 0 ? "#000" : "#444",
-              cursor: skipsLeft > 0 ? "pointer" : "not-allowed",
-            }}
-          >
-            Skip ({skipsLeft} left)
-          </button>
-        </>
+            <button
+              onClick={() => {
+                if (skipsLeft > 0) {
+                  let newExpr: keyof typeof expressionEmojis;
+                  const currentExpr =
+                    sequenceRef.current[currentIndexRef.current];
+                  skippedExpressionRef.current.add(currentExpr); // Mark the current as skipped
+
+                  do {
+                    newExpr =
+                      expressions[
+                        Math.floor(Math.random() * expressions.length)
+                      ];
+                  } while (skippedExpressionRef.current.has(newExpr)); // Avoid skipped ones
+
+                  sequenceRef.current[currentIndexRef.current] = newExpr;
+                  setCurrentTargetEmoji(expressionEmojis[newExpr]);
+                  holdStartTimeRef.current = null;
+                  setHoldProgress(0);
+                  setSkipsLeft((prev) => prev - 1);
+                }
+              }}
+              disabled={skipsLeft <= 0}
+              className={`mt-2 px-4 py-2 rounded-md transition-colors ${
+                skipsLeft > 0
+                  ? "bg-gray-200 hover:bg-gray-300 text-gray-800"
+                  : "bg-gray-100 text-gray-400 cursor-not-allowed"
+              }`}
+            >
+              Skip ({skipsLeft} left)
+            </button>
+          </div>
+        </div>
       )}
 
-      {stage === "success" && <p>🎉 You completed the sequence!</p>}
+      {stage === "success" && (
+        <div className="text-center py-10">
+          <div className="text-5xl mb-4">🎉</div>
+          <h2 className="text-2xl font-bold text-green-600 mb-2">Success!</h2>
+          <p className="text-lg">You completed the expression sequence!</p>
+        </div>
+      )}
     </div>
   );
 }

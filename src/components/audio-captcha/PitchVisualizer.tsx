@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { defaultToneDetector } from "../../lib/toneDetector";
 
 interface PitchVisualizerProps {
@@ -18,9 +18,40 @@ const PitchVisualizer: React.FC<PitchVisualizerProps> = ({
   // Set a reference point for visualization
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Add state to track sound activity with persistence
+  const [hasSound, setHasSound] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const lastActiveTimeRef = useRef<number | null>(null);
+  const silenceThreshold = 500; // ms of silence before showing "Make a sound" prompt
+
+  // Update sound activity status based on frequency value
+  useEffect(() => {
+    const now = Date.now();
+
+    if (userFrequency > 0) {
+      // User is making sound
+      lastActiveTimeRef.current = now;
+
+      if (!hasSound) {
+        // Show transition effect when sound first detected
+        setIsTransitioning(true);
+        setTimeout(() => setIsTransitioning(false), 300);
+        setHasSound(true);
+      }
+    } else if (hasSound && lastActiveTimeRef.current) {
+      // Check if silence has lasted long enough to reset
+      const silenceDuration = now - lastActiveTimeRef.current;
+
+      if (silenceDuration > silenceThreshold) {
+        setHasSound(false);
+      }
+      // If silence hasn't lasted long enough, keep hasSound true
+    }
+  }, [userFrequency, hasSound]);
+
   // For a singing-app like visualization, we want to show active pitch within a range
   // When no frequency detected, just show the prompt
-  if (userFrequency <= 0) {
+  if (!hasSound) {
     return (
       <div className="flex flex-col items-center justify-center h-full bg-gray-900">
         {stage === "recording" ? (
@@ -62,22 +93,26 @@ const PitchVisualizer: React.FC<PitchVisualizerProps> = ({
 
   // Calculate match and position for visualization
   const isMatch = defaultToneDetector.isFrequencyMatch(
-    userFrequency,
+    userFrequency || 0, // Handle potential zero frequency during persistence period
     targetFrequency
   );
 
   // Calculate position information for the visualization
   const { noteInfo, percentFromTarget, matchConfidence } =
-    calculateNotePosition(userFrequency, targetFrequency);
+    calculateNotePosition(userFrequency || 0, targetFrequency);
 
   return (
-    <div className="flex flex-col items-center justify-between h-full py-4 bg-gray-900">
+    <div
+      className={`flex flex-col items-center justify-between h-full py-4 bg-gray-900 ${
+        isTransitioning ? "animate-fadeIn" : ""
+      }`}
+    >
       {/* Top info area */}
       <div className="text-center mb-2 px-4">
         <div className="text-lg mb-1">
           <span className="text-white">Current: </span>
           <span className="font-mono text-white">
-            {Math.round(userFrequency)} Hz
+            {Math.round(userFrequency || 0)} Hz
           </span>
         </div>
         <div className="text-sm">
@@ -168,9 +203,7 @@ const PitchVisualizer: React.FC<PitchVisualizerProps> = ({
         {isMatch && (
           <div className="absolute bottom-2 left-0 right-0 flex justify-center">
             <div className="bg-green-500/20 backdrop-blur-sm px-3 py-1 rounded-full">
-              <span className="text-green-300 text-xs">
-                Match confidence: {Math.round(matchConfidence * 100)}%
-              </span>
+              <span className="text-green-300 text-xs">Match!</span>
             </div>
           </div>
         )}
