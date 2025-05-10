@@ -64,8 +64,9 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
   useEffect(() => {
     if (microphoneReady && challengeId) {
       console.log("Starting continuous audio processing");
-      // Start continuous audio processing (every 100ms for more responsiveness)
-      processingIntervalRef.current = setInterval(processAudioData, 100);
+      // Reduce the frequency of processing from 100ms to 300ms
+      // This is still responsive enough for voice detection but puts less load on the server
+      processingIntervalRef.current = setInterval(processAudioData, 300);
 
       // Return cleanup function
       return () => {
@@ -327,8 +328,9 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
     try {
       // Rate limit processing to avoid overwhelming the server
       const now = Date.now();
-      if (now - lastProcessedAt < 80) {
-        // Max ~12 requests per second
+      // Increase the throttling interval - only send data every 250ms
+      // This is more than enough for a voice-based captcha and reduces server load
+      if (now - lastProcessedAt < 250) {
         return;
       }
       setLastProcessedAt(now);
@@ -336,18 +338,35 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
       // Get audio data from analyzer
       audioAnalyser.getFloatTimeDomainData(audioDataRef.current);
 
-      // Send to server for processing
-      const result = await processAudio(challengeId, audioDataRef.current);
+      // Only send to server if we're recording or have significant amplitude
+      // Check for non-silence before sending data to the server
+      let hasSoundData = false;
+      let maxAmplitude = 0;
+      for (let i = 0; i < audioDataRef.current.length; i++) {
+        const abs = Math.abs(audioDataRef.current[i]);
+        if (abs > maxAmplitude) {
+          maxAmplitude = abs;
+        }
+        if (abs > 0.05) {
+          // Sound detection threshold
+          hasSoundData = true;
+          break;
+        }
+      }
 
-      setUserFrequency(result.frequency);
-      setUserAmplitude(result.amplitude);
-      setConfidenceScore(result.confidenceScore);
+      // Only process if there's actual sound or we're recording
+      if (hasSoundData || isRecordingRef.current) {
+        // Send to server for processing
+        const result = await processAudio(challengeId, audioDataRef.current);
 
-      // Store every userFrequency during recording
-      if (isRecordingRef.current && result.frequency > 0) {
-        recordedFrequenciesRef.current.push(result.frequency);
-        // Optionally log
-        // console.log("Stored userFrequency:", result.frequency);
+        setUserFrequency(result.frequency);
+        setUserAmplitude(result.amplitude);
+        setConfidenceScore(result.confidenceScore);
+
+        // Store every userFrequency during recording
+        if (isRecordingRef.current && result.frequency > 0) {
+          recordedFrequenciesRef.current.push(result.frequency);
+        }
       }
     } catch (error) {
       console.error("Error processing audio data:", error);
@@ -475,7 +494,10 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
     setStage("analyzing");
     try {
       console.log("All recorded frequencies:", recordedFrequenciesRef.current);
-      const result = await verifyAudioResponse(challengeId, recordedFrequenciesRef.current);
+      const result = await verifyAudioResponse(
+        challengeId,
+        recordedFrequenciesRef.current
+      );
       if (result.success) {
         setStage("success");
         onSuccess();

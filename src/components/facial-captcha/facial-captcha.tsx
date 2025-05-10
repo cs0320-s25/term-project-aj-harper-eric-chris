@@ -1,5 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import * as faceapi from "face-api.js";
+import {
+  generateFacialChallenge,
+  verifyExpression as verifyFacialExpression,
+  skipExpression,
+} from "../../lib/facialCaptchaApi";
 
 // mapping of facial expressions to emojis
 const expressionEmojis: { [key: string]: string } = {
@@ -9,11 +14,6 @@ const expressionEmojis: { [key: string]: string } = {
   neutral: "😐",
   sad: "😢",
 };
-
-// get keys of expressionEmojis
-const expressions: (keyof typeof expressionEmojis)[] = Object.keys(
-  expressionEmojis
-) as any;
 
 const holdDuration = 500; // time the user most hold the expression (.5 second)
 
@@ -26,18 +26,18 @@ export default function ExpressionSequence({ onSuccess }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null); // reference to the video element
   const intervalRef = useRef<number | null>(null); // reference to interval element
   const holdStartTimeRef = useRef<number | null>(null); // time the user started holding the expression
-  const currentIndexRef = useRef(0); // current index in the expression sequence
-  const sequenceRef = useRef<(keyof typeof expressionEmojis)[]>([]); // random expression sequence
-  const skippedExpressionRef = useRef<Set<keyof typeof expressionEmojis>>(
-    new Set()
-  ); // tracks skipped expressions
+
+  const [challengeId, setChallengeId] = useState<string>("");
+  const [currentExpression, setCurrentExpression] = useState<string>("");
+  const [expressionsTotal, setExpressionsTotal] = useState<number>(0);
+  const [expressionsCompleted, setExpressionsCompleted] = useState<number>(0);
 
   const [stage, setStage] = useState<"loading" | "expression" | "success">(
     "loading"
   );
   const [currentTargetEmoji, setCurrentTargetEmoji] = useState(""); // emoji to show the user
-  const [currentExpressionIndex, setCurrentExpressionIndex] = useState(0); // which expression in the sequence we're on
   const [holdProgress, setHoldProgress] = useState(0); // progress bar for holding the expression
+  const [error, setError] = useState<string | null>(null);
 
   // load the models when the component mounts
   useEffect(() => {
@@ -49,111 +49,188 @@ export default function ExpressionSequence({ onSuccess }: Props) {
 
   // load face detection and expression recognition models.
   const loadModels = async () => {
-    const MODEL_URL = "/models";
-    await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-    await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
-    await startVideo();
-  };
-  // start the webcam and generate the expression sequence
-  const startVideo = async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
-    if (videoRef.current) videoRef.current.srcObject = stream;
-
-    // Generate a random sequence of 3 expressions, ensuring no repeats in a row
-    const generatedSequence: (keyof typeof expressionEmojis)[] = [];
-
-    for (let i = 0; i < 3; i++) {
-      let nextExpr: keyof typeof expressionEmojis;
-      do {
-        nextExpr = expressions[Math.floor(Math.random() * expressions.length)];
-      } while (i > 0 && nextExpr === generatedSequence[i - 1]); // avoid same as previous
-
-      generatedSequence.push(nextExpr);
+    try {
+      const MODEL_URL = "/models";
+      await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+      await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
+      await startVideo();
+    } catch (error) {
+      console.error("Error loading models:", error);
+      setError(
+        "Could not load facial recognition models. Please refresh and try again."
+      );
     }
+  };
 
-    sequenceRef.current = generatedSequence;
+  // start the webcam and generate a new challenge from the backend
+  const startVideo = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
+      if (videoRef.current) videoRef.current.srcObject = stream;
 
-    setCurrentTargetEmoji(expressionEmojis[generatedSequence[0]]);
-    setStage("expression");
+      // Generate a new challenge from the backend
+      await generateNewChallenge();
 
-    // Set up interval to process video frames every 100ms
-    intervalRef.current = window.setInterval(processFrame, 100);
+      // Set up interval to process video frames every 100ms
+      intervalRef.current = window.setInterval(processFrame, 100);
+    } catch (error) {
+      console.error("Error starting video:", error);
+      setError(
+        "Could not access camera. Please ensure camera permissions are enabled and try again."
+      );
+    }
+  };
+
+  // get a new challenge from the backend
+  const generateNewChallenge = async () => {
+    try {
+      const data = await generateFacialChallenge();
+
+      if (data.success) {
+        setChallengeId(data.challengeId);
+        setCurrentExpression(data.currentExpression);
+        setExpressionsTotal(data.totalExpressions);
+        setExpressionsCompleted(0);
+        setCurrentTargetEmoji(expressionEmojis[data.currentExpression]);
+        setStage("expression");
+      } else {
+        setError("Failed to generate challenge: " + data.message);
+      }
+    } catch (error) {
+      console.error("Error generating challenge:", error);
+      setError("Failed to connect to server. Please try again later.");
+    }
   };
 
   // process each frame to detect facial expressions
   const processFrame = async () => {
-    if (!videoRef.current) return;
+    if (!videoRef.current || !challengeId || stage !== "expression") return;
 
-    const detections = await faceapi
-      .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions())
-      .withFaceExpressions();
-    // if no face or expressions detected, reset progress
-    if (!detections || !detections.expressions) {
-      holdStartTimeRef.current = null;
-      setHoldProgress(0);
-      return;
-    }
-    // map from expression to confidence score
-    const expressionsDetected = detections.expressions as {
-      [key: string]: number;
-    };
-    // sorts expressions in order of confidence scores
-    const sorted = Object.entries(expressionsDetected).sort(
-      (a, b) => b[1] - a[1]
-    );
-    // gets element with highest confidence
-    //const [expression, confidence] = sorted[0];
+    try {
+      const detections = await faceapi
+        .detectSingleFace(
+          videoRef.current,
+          new faceapi.TinyFaceDetectorOptions()
+        )
+        .withFaceExpressions();
 
-    const targetExpression = sequenceRef.current[currentIndexRef.current];
-    const confidence = expressionsDetected[targetExpression];
-    console.log(confidence);
-    // if top expression matches target expression and with high enough confidence
-    //if (expression === targetExpression && confidence > 0.5) {
-    let target = 0.5; // default target confidence
-    // set target confidence based on the target expression
-    // happy and neutral are easier to hold, sad is harder, surprised/fearful/angry are hardest
-    if (targetExpression == "happy" || targetExpression == "neutral") {
-      target = 0.5;
-    } else if (targetExpression == "sad") {
-      target = 0.4;
-    } else if (targetExpression == "surprised" || targetExpression == "angry") {
-      target = 0.3;
-    }
-    if (confidence > target) {
-      if (!holdStartTimeRef.current) {
-        holdStartTimeRef.current = Date.now(); // start the timer
-      }
-
-      const elapsed = Date.now() - holdStartTimeRef.current;
-      setHoldProgress(Math.min((elapsed / holdDuration) * 100, 100));
-
-      if (elapsed >= holdDuration) {
-        // if expression held for long enough
-        console.log("✅ Expression held for 1 second!");
-        // reset timer
+      // if no face or expressions detected, reset progress
+      if (!detections || !detections.expressions) {
         holdStartTimeRef.current = null;
         setHoldProgress(0);
-        const nextIndex = currentIndexRef.current + 1;
-        if (nextIndex >= sequenceRef.current.length) {
-          // all expressions done
-          setStage("success");
-          onSuccess();
-          return;
-        } else {
-          // move onto the next expression
-          currentIndexRef.current = nextIndex;
-          setCurrentExpressionIndex(nextIndex);
-          setCurrentTargetEmoji(
-            expressionEmojis[sequenceRef.current[nextIndex]]
-          );
-        }
+        return;
       }
-    } else {
-      // wrong expression detected, reset the hold
-      holdStartTimeRef.current = null;
-      setHoldProgress(0);
+
+      // Get the confidence value for our target expression
+      const expressions = detections.expressions as unknown as Record<
+        string,
+        number
+      >;
+      const confidenceValue = expressions[currentExpression] || 0;
+
+      // Check if we have enough confidence for the target expression
+      if (confidenceValue > 0) {
+        if (!holdStartTimeRef.current) {
+          holdStartTimeRef.current = Date.now(); // start the timer
+        }
+
+        const elapsed = Date.now() - holdStartTimeRef.current;
+        setHoldProgress(Math.min((elapsed / holdDuration) * 100, 100));
+
+        if (elapsed >= holdDuration) {
+          // Expression held for required duration - verify with backend
+          await verifyCurrentExpression(confidenceValue);
+
+          // Reset timer
+          holdStartTimeRef.current = null;
+          setHoldProgress(0);
+        }
+      } else {
+        // Not enough confidence, reset the timer
+        holdStartTimeRef.current = null;
+        setHoldProgress(0);
+      }
+    } catch (error) {
+      console.error("Error processing frame:", error);
     }
   };
+
+  // Verify the expression with the backend
+  const verifyCurrentExpression = async (confidence: number) => {
+    try {
+      const data = await verifyFacialExpression(challengeId, {
+        expression: currentExpression,
+        confidence,
+        timestamp: Date.now(),
+      });
+
+      if (data.success) {
+        if (data.isComplete) {
+          // Challenge completed successfully
+          setStage("success");
+          onSuccess();
+        } else {
+          // Move to next expression
+          setCurrentExpression(data.nextExpression || "");
+          setCurrentTargetEmoji(expressionEmojis[data.nextExpression || ""]);
+          setExpressionsCompleted((prev) => prev + 1);
+        }
+      } else {
+        // Failed to verify, continue trying
+        console.log("Verification failed:", data.message);
+      }
+    } catch (error) {
+      console.error("Error verifying expression:", error);
+    }
+  };
+
+  // Skip the current expression
+  const handleSkip = async () => {
+    if (skipsLeft <= 0 || !challengeId) return;
+
+    try {
+      const data = await skipExpression(challengeId);
+
+      if (data.success) {
+        setCurrentExpression(data.newExpression);
+        setCurrentTargetEmoji(expressionEmojis[data.newExpression]);
+        holdStartTimeRef.current = null;
+        setHoldProgress(0);
+        setSkipsLeft((prev) => prev - 1);
+      } else {
+        setError("Failed to skip expression: " + data.message);
+      }
+    } catch (error) {
+      console.error("Error skipping expression:", error);
+      setError("Failed to connect to server. Please try again later.");
+    }
+  };
+
+  if (error) {
+    return (
+      <div style={{ textAlign: "center", padding: "20px" }}>
+        <p style={{ color: "red" }}>{error}</p>
+        <button
+          onClick={() => {
+            setError(null);
+            loadModels();
+          }}
+          style={{
+            marginTop: "10px",
+            padding: "8px 16px",
+            fontSize: "16px",
+            borderRadius: "6px",
+            border: "none",
+            backgroundColor: "#4caf50",
+            color: "white",
+            cursor: "pointer",
+          }}
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div style={{ textAlign: "center", padding: "20px" }}>
@@ -174,9 +251,7 @@ export default function ExpressionSequence({ onSuccess }: Props) {
                 }}
               >
                 <span style={{ fontSize: "48px" }}>{currentTargetEmoji} </span>
-                <span style={{ fontSize: "24px" }}>
-                  {sequenceRef.current[currentIndexRef.current]}
-                </span>
+                <span style={{ fontSize: "24px" }}>{currentExpression}</span>
               </div>
             </div>
           </div>
@@ -221,31 +296,11 @@ export default function ExpressionSequence({ onSuccess }: Props) {
             }}
           >
             Expression{" "}
-            <span style={{ color: "#4caf50" }}>
-              {currentExpressionIndex + 1}
-            </span>{" "}
-            of {sequenceRef.current.length}
+            <span style={{ color: "#4caf50" }}>{expressionsCompleted + 1}</span>{" "}
+            of {expressionsTotal}
           </p>
           <button
-            onClick={() => {
-              if (skipsLeft > 0) {
-                let newExpr: keyof typeof expressionEmojis;
-                const currentExpr =
-                  sequenceRef.current[currentIndexRef.current];
-                skippedExpressionRef.current.add(currentExpr); // Mark the current as skipped
-
-                do {
-                  newExpr =
-                    expressions[Math.floor(Math.random() * expressions.length)];
-                } while (skippedExpressionRef.current.has(newExpr)); // Avoid skipped ones
-
-                sequenceRef.current[currentIndexRef.current] = newExpr;
-                setCurrentTargetEmoji(expressionEmojis[newExpr]);
-                holdStartTimeRef.current = null;
-                setHoldProgress(0);
-                setSkipsLeft((prev) => prev - 1);
-              }
-            }}
+            onClick={handleSkip}
             disabled={skipsLeft <= 0}
             style={{
               marginTop: "10px",
