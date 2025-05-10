@@ -81,11 +81,17 @@ export default function Home() {
 
       <main className="w-full max-w-md">
         {captchaVerified ? (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 text-center">
+          <div
+            className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 text-center"
+            role="alert"
+            aria-live="assertive"
+          >
             <div
               className={`${
                 isBotDetected ? "text-red-500" : "text-green-500"
               } mb-4`}
+              role="img"
+              aria-hidden="true"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -93,6 +99,7 @@ export default function Home() {
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
+                aria-hidden="true"
               >
                 {isBotDetected ? (
                   <path
@@ -111,7 +118,11 @@ export default function Home() {
                 )}
               </svg>
             </div>
-            <h2 className="text-2xl font-bold mb-2">
+            <h2
+              className="text-2xl font-bold mb-2"
+              role="heading"
+              aria-level={2}
+            >
               {isBotDetected
                 ? "Suspicious Activity Detected"
                 : "Verification Successful!"}
@@ -127,6 +138,7 @@ export default function Home() {
                 setIsBotDetected(false);
               }}
               className="bg-primary-500 hover:bg-primary-600 text-white font-medium py-2 px-4 rounded-md transition-colors"
+              aria-label="Try verification again"
             >
               Try Again
             </button>
@@ -139,9 +151,14 @@ export default function Home() {
                 setSelectedCaptchaType(value as "audio" | "facial")
               }
               className="w-full"
+              aria-label="CAPTCHA type selection"
             >
               <TabsList className="grid w-full grid-cols-2 mb-4">
-                <TabsTrigger value="audio">
+                <TabsTrigger
+                  value="audio"
+                  aria-selected={selectedCaptchaType === "audio"}
+                  aria-controls="audio-tab"
+                >
                   <span className="flex items-center">
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
@@ -149,6 +166,7 @@ export default function Home() {
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
+                      aria-hidden="true"
                     >
                       <path
                         strokeLinecap="round"
@@ -160,7 +178,11 @@ export default function Home() {
                     Audio Mimicry
                   </span>
                 </TabsTrigger>
-                <TabsTrigger value="facial">
+                <TabsTrigger
+                  value="facial"
+                  aria-selected={selectedCaptchaType === "facial"}
+                  aria-controls="facial-tab"
+                >
                   <span className="flex items-center">
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
@@ -168,6 +190,7 @@ export default function Home() {
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
+                      aria-hidden="true"
                     >
                       <path
                         strokeLinecap="round"
@@ -187,8 +210,15 @@ export default function Home() {
                 <ErrorBoundary FallbackComponent={ErrorFallback}>
                   <Suspense
                     fallback={
-                      <div className="flex flex-col items-center justify-center h-64 bg-gray-100 dark:bg-gray-800 rounded-lg">
-                        <div className="w-12 h-12 border-t-2 border-blue-500 rounded-full animate-spin mb-4"></div>
+                      <div
+                        className="flex flex-col items-center justify-center h-64 bg-gray-100 dark:bg-gray-800 rounded-lg"
+                        role="status"
+                        aria-label="Loading facial recognition"
+                      >
+                        <div
+                          className="w-12 h-12 border-t-2 border-blue-500 rounded-full animate-spin mb-4"
+                          aria-hidden="true"
+                        ></div>
                         <p className="text-gray-600 dark:text-gray-300">
                           Preparing face detection...
                         </p>
@@ -204,7 +234,10 @@ export default function Home() {
         )}
       </main>
 
-      <footer className="mt-12 text-center text-gray-500 dark:text-gray-400 text-sm">
+      <footer
+        className="mt-12 text-center text-gray-500 dark:text-gray-400 text-sm"
+        role="contentinfo"
+      >
         <p>
           © {new Date().getFullYear()} MimicCaptcha. Privacy-first human
           verification.

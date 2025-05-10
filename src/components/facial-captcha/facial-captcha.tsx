@@ -189,12 +189,24 @@ export default function ExpressionSequence({ onSuccess }: Props) {
 
   return (
     <div style={{ textAlign: "center", padding: "20px" }}>
-      {stage === "loading" && <p>Loading models...</p>}
+      {stage === "loading" && (
+        <p role="status" aria-live="polite">
+          Loading facial recognition models...
+        </p>
+      )}
 
       {stage === "expression" && (
         <>
-          <div style={{ textAlign: "center" }}>
-            <p style={{ fontSize: "24px", marginBottom: "12px" }}>
+          <div
+            style={{ textAlign: "center" }}
+            role="region"
+            aria-label="Facial expression challenge"
+          >
+            <p
+              style={{ fontSize: "24px", marginBottom: "12px" }}
+              role="heading"
+              aria-level={2}
+            >
               Match this expression:
             </p>
             <div>
@@ -204,22 +216,38 @@ export default function ExpressionSequence({ onSuccess }: Props) {
                   marginBottom: "12px",
                   textTransform: "capitalize",
                 }}
+                role="status"
+                aria-live="polite"
+                aria-label={`Target expression: ${
+                  sequenceRef.current[currentIndexRef.current]
+                }`}
               >
-                <span style={{ fontSize: "48px" }}>{currentTargetEmoji} </span>
-                <span style={{ fontSize: "24px" }}>
+                <span style={{ fontSize: "48px" }} aria-hidden="true">
+                  {currentTargetEmoji}
+                </span>
+                <span style={{ fontSize: "24px" }} aria-hidden="true">
                   {sequenceRef.current[currentIndexRef.current]}
                 </span>
               </div>
             </div>
           </div>
-          <video
-            ref={videoRef}
-            autoPlay
-            muted
-            width={400}
-            height={300}
-            style={{ borderRadius: "8px" }}
-          />
+          <div role="region" aria-label="Webcam view">
+            <video
+              ref={videoRef}
+              autoPlay
+              muted
+              width={400}
+              height={300}
+              style={{ borderRadius: "8px" }}
+              aria-label="Webcam feed"
+              role="img"
+              aria-describedby="webcam-description"
+            />
+            <div id="webcam-description" className="sr-only">
+              Your webcam feed is being used to detect your facial expressions.
+              Make sure your face is clearly visible in the frame.
+            </div>
+          </div>
           <div
             style={{
               width: "400px",
@@ -232,7 +260,8 @@ export default function ExpressionSequence({ onSuccess }: Props) {
             aria-valuenow={holdProgress}
             aria-valuemin={0}
             aria-valuemax={100}
-            aria-label="Expression hold progress"
+            aria-label={`Hold progress: ${Math.round(holdProgress)}%`}
+            aria-describedby="progress-description"
           >
             <div
               style={{
@@ -243,6 +272,10 @@ export default function ExpressionSequence({ onSuccess }: Props) {
                 transition: "width 100ms linear",
               }}
             />
+            <div id="progress-description" className="sr-only">
+              Hold the required facial expression until the progress bar fills
+              completely.
+            </div>
           </div>
           <p
             style={{
@@ -251,12 +284,19 @@ export default function ExpressionSequence({ onSuccess }: Props) {
               marginTop: "12px",
               color: "#333",
             }}
+            role="status"
+            aria-live="polite"
+            aria-label={`Expression ${currentExpressionIndex + 1} of ${
+              sequenceRef.current.length
+            }`}
           >
-            Expression{" "}
-            <span style={{ color: "#4caf50" }}>
-              {currentExpressionIndex + 1}
-            </span>{" "}
-            of {sequenceRef.current.length}
+            <span aria-hidden="true">
+              Expression{" "}
+              <span style={{ color: "#4caf50" }}>
+                {currentExpressionIndex + 1}
+              </span>{" "}
+              of {sequenceRef.current.length}
+            </span>
           </p>
           <button
             onClick={() => {
@@ -264,12 +304,12 @@ export default function ExpressionSequence({ onSuccess }: Props) {
                 let newExpr: keyof typeof expressionEmojis;
                 const currentExpr =
                   sequenceRef.current[currentIndexRef.current];
-                skippedExpressionRef.current.add(currentExpr); // Mark the current as skipped
+                skippedExpressionRef.current.add(currentExpr);
 
                 do {
                   newExpr =
                     expressions[Math.floor(Math.random() * expressions.length)];
-                } while (skippedExpressionRef.current.has(newExpr)); // Avoid skipped ones
+                } while (skippedExpressionRef.current.has(newExpr));
 
                 sequenceRef.current[currentIndexRef.current] = newExpr;
                 setCurrentTargetEmoji(expressionEmojis[newExpr]);
@@ -289,13 +329,24 @@ export default function ExpressionSequence({ onSuccess }: Props) {
               color: skipsLeft > 0 ? "#000" : "#444",
               cursor: skipsLeft > 0 ? "pointer" : "not-allowed",
             }}
+            aria-label={`Skip expression (${skipsLeft} remaining)`}
+            aria-disabled={skipsLeft <= 0}
+            aria-describedby="skip-description"
           >
-            Skip ({skipsLeft} left)
+            <span aria-hidden="true">Skip ({skipsLeft} left)</span>
+            <div id="skip-description" className="sr-only">
+              Skip the current expression if it's too difficult. Limited skips
+              available.
+            </div>
           </button>
         </>
       )}
 
-      {stage === "success" && <p>🎉 You completed the sequence!</p>}
+      {stage === "success" && (
+        <div role="status" aria-live="polite" aria-label="Challenge completed">
+          <p aria-hidden="true">🎉 You completed the sequence!</p>
+        </div>
+      )}
     </div>
   );
 }
