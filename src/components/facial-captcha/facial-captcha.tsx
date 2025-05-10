@@ -18,7 +18,7 @@ const expressions: (keyof typeof expressionEmojis)[] = Object.keys(
 const holdDuration = 500; // time the user most hold the expression (.5 second)
 
 type Props = {
-  onSuccess: () => void;
+  onSuccess: (isBotDetected?: boolean) => void;
 };
 
 export default function ExpressionSequence({ onSuccess }: Props) {
@@ -31,10 +31,13 @@ export default function ExpressionSequence({ onSuccess }: Props) {
   const skippedExpressionRef = useRef<Set<keyof typeof expressionEmojis>>(
     new Set()
   ); // tracks skipped expressions
+  // Change to store all expression confidences for each frame
+  const frameConfidencesRef = useRef<{ [key: string]: number[] }>({});
+  const [botDetected, setBotDetected] = useState(false);
 
-  const [stage, setStage] = useState<"loading" | "expression" | "success">(
-    "loading"
-  );
+  const [stage, setStage] = useState<
+    "loading" | "expression" | "success" | "bot_detected"
+  >("loading");
   const [currentTargetEmoji, setCurrentTargetEmoji] = useState(""); // emoji to show the user
   const [currentExpressionIndex, setCurrentExpressionIndex] = useState(0); // which expression in the sequence we're on
   const [holdProgress, setHoldProgress] = useState(0); // progress bar for holding the expression
@@ -94,20 +97,50 @@ export default function ExpressionSequence({ onSuccess }: Props) {
       return;
     }
     // map from expression to confidence score
-    const expressionsDetected = detections.expressions as {
+    const expressionsDetected = detections.expressions as unknown as {
       [key: string]: number;
     };
-    // sorts expressions in order of confidence scores
-    const sorted = Object.entries(expressionsDetected).sort(
-      (a, b) => b[1] - a[1]
-    );
-    // gets element with highest confidence
-    //const [expression, confidence] = sorted[0];
+
+    // Store confidences for all expressions in this frame
+    Object.entries(expressionsDetected).forEach(([expression, confidence]) => {
+      if (!frameConfidencesRef.current[expression]) {
+        frameConfidencesRef.current[expression] = [];
+      }
+      frameConfidencesRef.current[expression].push(confidence);
+      // Keep only last 5 frames
+      if (frameConfidencesRef.current[expression].length > 5) {
+        frameConfidencesRef.current[expression].shift();
+      }
+    });
+
+    // Check for suspicious activity (all expressions have identical patterns across 5 frames)
+    const allExpressions = Object.keys(expressionsDetected);
+    if (
+      allExpressions.every(
+        (expr) => frameConfidencesRef.current[expr]?.length === 5
+      )
+    ) {
+      const isSuspicious = allExpressions.every((expr) => {
+        const confidences = frameConfidencesRef.current[expr];
+        // Check if all confidences for this expression are identical
+        return confidences.every(
+          (score) => Math.abs(score - confidences[0]) < 0.00001
+        );
+      });
+
+      if (isSuspicious) {
+        setBotDetected(true);
+        setStage("bot_detected");
+        if (intervalRef.current) clearInterval(intervalRef.current);
+        onSuccess(true);
+        return;
+      }
+    }
 
     const targetExpression = sequenceRef.current[currentIndexRef.current];
     const confidence = expressionsDetected[targetExpression];
-    console.log(confidence);
-    let target = 0.5; // default target confidence
+
+    let target = 0.5;
     // happy and neutral are easier to hold, sad is harder, surprised/fearful/angry are hardest
     if (targetExpression == "happy" || targetExpression == "neutral") {
       target = 0.4;
