@@ -196,6 +196,11 @@ export default function ExpressionSequence({ onSuccess }: Props) {
               margin: "10px auto",
               borderRadius: "5px",
             }}
+            role="progressbar"
+            aria-valuenow={holdProgress}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label="Expression hold progress"
           >
             <div
               style={{
