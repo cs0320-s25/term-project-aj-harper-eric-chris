@@ -17,6 +17,12 @@ const nextConfig = {
     };
     return config;
   },
+  // Enable SWC minification
+  swcMinify: true,
+  // Disable Babel
+  experimental: {
+    forceSwcTransforms: true,
+  },
 };
 
 module.exports = nextConfig;

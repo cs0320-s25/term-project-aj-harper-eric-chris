@@ -1,13 +1,20 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import {
+  generateAudioChallenge,
+  getAudioTone,
+  processAudio,
+  verifyAudioResponse,
+} from "../../lib/audioCaptchaApi";
 
 interface AudioCaptchaProps {
   onSuccess: () => void;
 }
 
 const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
-  // State for tone sequence
+  // State for challenge data
+  const [challengeId, setChallengeId] = useState<string>("");
   const [toneSequence, setToneSequence] = useState<number[]>([]);
   const [currentToneIndex, setCurrentToneIndex] = useState(0);
 
@@ -15,6 +22,8 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
   const [microphoneAccess, setMicrophoneAccess] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
+  const [audioAnalyser, setAudioAnalyser] = useState<AnalyserNode | null>(null);
+  const [microphoneReady, setMicrophoneReady] = useState(false);
 
   // State for challenge progress
   const [stage, setStage] = useState<
@@ -25,6 +34,8 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
   const [showDebug, setShowDebug] = useState(true);
   const [userFrequency, setUserFrequency] = useState<number>(0);
   const [userAmplitude, setUserAmplitude] = useState<number>(0);
+  const [confidenceScore, setConfidenceScore] = useState<number>(0);
+  const [lastProcessedAt, setLastProcessedAt] = useState<number>(0);
 
   // Refs
   const oscillatorRef = useRef<OscillatorNode | null>(null);
@@ -32,26 +43,15 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
   const streamRef = useRef<MediaStream | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const animationRef = useRef<number | null>(null);
-
-  // Generate a simpler tone sequence (shorter and easier to mimic)
-  const generateToneSequence = () => {
-    // Use lower frequencies that are easier for humans to replicate
-    const baseFrequencies = [200, 300, 400];
-
-    // For simplicity, just use a single tone
-    const randomIndex = Math.floor(Math.random() * baseFrequencies.length);
-    const frequency = baseFrequencies[randomIndex];
-
-    console.log(`Generated tone with frequency: ${frequency}Hz`);
-
-    // Return a single-tone sequence
-    return [frequency];
-  };
+  const audioDataRef = useRef<Float32Array | null>(null);
+  const processingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const micSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const recordedFrequenciesRef = useRef<number[]>([]);
+  const isRecordingRef = useRef(false);
 
   // Initialize on mount
   useEffect(() => {
-    const sequence = generateToneSequence();
-    setToneSequence(sequence);
+    initChallenge();
 
     // Clean up on unmount
     return () => {
@@ -59,6 +59,41 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
       cleanupAudio();
     };
   }, []);
+
+  // Effect to continuously process audio when microphone is ready
+  useEffect(() => {
+    if (microphoneReady && challengeId) {
+      console.log("Starting continuous audio processing");
+      // Start continuous audio processing (every 100ms for more responsiveness)
+      processingIntervalRef.current = setInterval(processAudioData, 100);
+
+      // Return cleanup function
+      return () => {
+        if (processingIntervalRef.current) {
+          clearInterval(processingIntervalRef.current);
+          processingIntervalRef.current = null;
+        }
+      };
+    }
+  }, [microphoneReady, challengeId]);
+
+  // Initialize a new challenge
+  const initChallenge = async () => {
+    try {
+      // Generate a new challenge
+      const challenge = await generateAudioChallenge();
+      setChallengeId(challenge.challengeId);
+
+      // Get the tone data
+      const toneData = await getAudioTone(challenge.challengeId);
+      setToneSequence([toneData.frequency]);
+
+      console.log(`Generated tone with frequency: ${toneData.frequency}Hz`);
+    } catch (error) {
+      console.error("Error initializing challenge:", error);
+      setStage("failure");
+    }
+  };
 
   // Function to play a tone
   const playTone = (frequency: number, duration = 1000) => {
@@ -164,17 +199,42 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
     console.log("Cleaning up audio resources");
     stopTone();
 
+    // First disconnect any audio nodes
+    if (micSourceRef.current) {
+      try {
+        micSourceRef.current.disconnect();
+        micSourceRef.current = null;
+      } catch (e) {
+        console.error("Error disconnecting microphone source:", e);
+      }
+    }
+
+    // Stop any media streams
     if (streamRef.current) {
       console.log("Stopping audio tracks");
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     }
 
+    // Cancel animations
     if (animationRef.current) {
       console.log("Canceling animation frame");
       cancelAnimationFrame(animationRef.current);
       animationRef.current = null;
     }
+
+    // Clear processing intervals
+    if (processingIntervalRef.current) {
+      clearInterval(processingIntervalRef.current);
+      processingIntervalRef.current = null;
+    }
+
+    // Reset audio state
+    setMicrophoneReady(false);
+    setAudioAnalyser(null);
+
+    // Do not reset audio context to avoid "The AudioContext was not allowed to start" errors on some browsers
+    // setAudioContext(null);
   };
 
   // Play the demo tone sequence
@@ -196,9 +256,18 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
   // Initialize the microphone
   const initMicrophone = async () => {
     try {
-      // Request microphone access
+      // First, clean up any existing audio resources to ensure a fresh start
+      cleanupAudio();
+
+      console.log("Initializing microphone");
+
+      // Request microphone access with appropriate constraints for voice detection
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: false, // Disable to better detect actual amplitude
+        },
         video: false,
       });
 
@@ -206,8 +275,35 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
       streamRef.current = stream;
       setMicrophoneAccess(true);
 
+      // Create or reuse audio context
+      const ctx =
+        audioContext ||
+        new (window.AudioContext || (window as any).webkitAudioContext)();
+      if (!audioContext) {
+        setAudioContext(ctx);
+      }
+
+      // Create analyzer node
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 2048; // Larger FFT size for better frequency resolution
+      analyser.smoothingTimeConstant = 0.3; // Less smoothing for more responsive display
+      setAudioAnalyser(analyser);
+
+      // Connect microphone to analyzer
+      const source = ctx.createMediaStreamSource(stream);
+      micSourceRef.current = source;
+      source.connect(analyser);
+
+      // Create data array for analyser
+      audioDataRef.current = new Float32Array(analyser.fftSize);
+
+      // Mark microphone as ready after setup is complete
+      setMicrophoneReady(true);
+
+      // Start drawing waveform
       drawWaveform();
 
+      console.log("Microphone initialized successfully");
       return true;
     } catch (error) {
       console.error("Error accessing microphone:", error);
@@ -217,7 +313,49 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
     }
   };
 
-  // Draw a simulated waveform animation
+  // Process audio data and send to server
+  const processAudioData = async () => {
+    if (
+      !audioAnalyser ||
+      !audioDataRef.current ||
+      !challengeId ||
+      !microphoneReady
+    ) {
+      return;
+    }
+
+    try {
+      // Rate limit processing to avoid overwhelming the server
+      const now = Date.now();
+      if (now - lastProcessedAt < 80) {
+        // Max ~12 requests per second
+        return;
+      }
+      setLastProcessedAt(now);
+
+      // Get audio data from analyzer
+      audioAnalyser.getFloatTimeDomainData(audioDataRef.current);
+
+      // Send to server for processing
+      const result = await processAudio(challengeId, audioDataRef.current);
+
+      setUserFrequency(result.frequency);
+      setUserAmplitude(result.amplitude);
+      setConfidenceScore(result.confidenceScore);
+
+      // Store every userFrequency during recording
+      if (isRecordingRef.current && result.frequency > 0) {
+        recordedFrequenciesRef.current.push(result.frequency);
+        // Optionally log
+        // console.log("Stored userFrequency:", result.frequency);
+      }
+    } catch (error) {
+      console.error("Error processing audio data:", error);
+      // Don't fail completely on errors, just log them
+    }
+  };
+
+  // Draw a waveform visualization
   const drawWaveform = () => {
     if (!canvasRef.current) return;
 
@@ -258,45 +396,56 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
       ctx.lineWidth = 3;
       ctx.beginPath();
 
-      // Generate simulated waveform
-      const centerY = canvas.height / 2;
-      const amplitude = isRecording ? 40 + Math.random() * 30 : 20;
-      const step = 5;
-      const time = Date.now() / 1000;
+      // Always draw waveform data when microphone is ready
+      if (audioAnalyser && audioDataRef.current && microphoneReady) {
+        // Get the latest audio data
+        audioAnalyser.getFloatTimeDomainData(audioDataRef.current);
 
-      ctx.moveTo(0, centerY);
+        const bufferLength = audioDataRef.current.length;
+        const centerY = canvas.height / 2;
+        const sliceWidth = canvas.width / bufferLength;
 
-      for (let x = 0; x < canvas.width; x += step) {
-        // Create a more complex waveform with multiple frequencies
-        const y =
-          centerY +
-          Math.sin(x * 0.02 + time * 5) * amplitude * 0.5 +
-          Math.sin(x * 0.01 + time * 3) * amplitude * 0.3 +
-          Math.sin(x * 0.005 + time) * amplitude * 0.2;
+        // Enhance the waveform visualization
+        const amplificationFactor = isRecording ? 3.0 : 2.0; // Amplify the waveform
 
-        ctx.lineTo(x, y);
+        ctx.moveTo(0, centerY);
+
+        for (let i = 0; i < bufferLength; i += 4) {
+          // Skip some samples for performance
+          const x = i * sliceWidth;
+          const v = audioDataRef.current[i] * amplificationFactor;
+          const y = centerY + (v * canvas.height) / 2; // Scale to fit canvas
+
+          if (i === 0) {
+            ctx.moveTo(x, y);
+          } else {
+            ctx.lineTo(x, y);
+          }
+        }
+      } else {
+        // Draw simulated waveform when not recording
+        const centerY = canvas.height / 2;
+        const amplitude = 20;
+        const step = 5;
+        const time = Date.now() / 1000;
+
+        ctx.moveTo(0, centerY);
+
+        for (let x = 0; x < canvas.width; x += step) {
+          // Create a simpler waveform
+          const y = centerY + Math.sin(x * 0.01 + time * 2) * amplitude;
+
+          ctx.lineTo(x, y);
+        }
       }
 
       ctx.stroke();
 
-      // Draw user frequency simulation
-      if (isRecording) {
-        // Simulate user frequency changing gradually
-        const targetFreq = toneSequence[0];
-        const currentFreq = userFrequency || 100;
-
-        // Gradually converge to the target frequency
-        const newFreq =
-          currentFreq * 0.95 + targetFreq * 0.05 * (0.8 + Math.random() * 0.4);
-        setUserFrequency(newFreq);
-
-        // Also simulate amplitude
-        setUserAmplitude(30 + Math.random() * 20);
-
-        // Draw frequency indicator
+      // Draw frequency indicator on the waveform during recording
+      if (isRecording && userFrequency > 0) {
         ctx.fillStyle = "#ffffff";
         ctx.font = "16px monospace";
-        ctx.fillText(`Frequency: ${Math.round(newFreq)} Hz`, 10, 25);
+        ctx.fillText(`Detected: ${Math.round(userFrequency)} Hz`, 10, 25);
       }
 
       // Continue animation
@@ -309,24 +458,39 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
   // Start recording
   const startRecording = () => {
     setIsRecording(true);
-
-    // Simulate recording for 3 seconds
+    recordedFrequenciesRef.current = [];
     setTimeout(() => {
       setIsRecording(false);
+      // Stop interval when recording ends
+      if (processingIntervalRef.current) {
+        clearInterval(processingIntervalRef.current);
+        processingIntervalRef.current = null;
+      }
       analyzeRecording();
-    }, 3000);
+    }, 2000);
   };
 
-  // Analyze the recording (mocked)
-  const analyzeRecording = () => {
+  // Analyze the recording
+  const analyzeRecording = async () => {
     setStage("analyzing");
-
-    // Simulate analysis delay
-    setTimeout(() => {
-      // For frontend mockup, always succeed
-      setStage("success");
-      onSuccess();
-    }, 1500);
+    try {
+      console.log("All recorded frequencies:", recordedFrequenciesRef.current);
+      const result = await verifyAudioResponse(challengeId, recordedFrequenciesRef.current);
+      if (result.success) {
+        setStage("success");
+        onSuccess();
+      } else {
+        setStage("failure");
+      }
+    } catch (error) {
+      setStage("failure");
+    } finally {
+      // Always stop the processing interval after verification
+      if (processingIntervalRef.current) {
+        clearInterval(processingIntervalRef.current);
+        processingIntervalRef.current = null;
+      }
+    }
   };
 
   // Try again
@@ -339,12 +503,18 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
     setCurrentToneIndex(0);
     setUserFrequency(0);
     setUserAmplitude(0);
+    setConfidenceScore(0);
     setIsRecording(false);
+
+    // Initialize a new challenge
+    initChallenge();
   };
 
   // Start button handler
   const handleStart = async () => {
     if (await initMicrophone()) {
+      // Start processing audio as soon as Start is clicked
+      processingIntervalRef.current = setInterval(processAudioData, 100);
       playDemoSequence();
     }
   };
@@ -358,6 +528,13 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
   const toggleDebug = () => {
     setShowDebug(!showDebug);
   };
+
+  // Determine if we should show debug info based on microphone state
+  const shouldShowDebug = showDebug && (stage !== "initial" || microphoneReady);
+
+  useEffect(() => {
+    isRecordingRef.current = isRecording;
+  }, [isRecording]);
 
   return (
     <div className="w-full">
@@ -376,14 +553,19 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
           </div>
         )}
 
-        {/* Frequency display */}
-        {showDebug && stage !== "initial" && (
+        {/* Frequency display - always show when debug is enabled */}
+        {shouldShowDebug && (
           <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white p-2 rounded text-sm font-mono">
-            <div>Target: {toneSequence[0]} Hz</div>
-            {(stage === "recording" || stage === "analyzing") && (
+            {toneSequence.length > 0 && <div>Target: {toneSequence[0]} Hz</div>}
+            {/* Always show user frequency when microphone is ready */}
+            {microphoneReady && (
               <>
                 <div>User: {Math.round(userFrequency)} Hz</div>
                 <div>Amplitude: {Math.round(userAmplitude)}</div>
+                {/* Show confidence when recording or analyzing */}
+                {(stage === "recording" || stage === "analyzing") && (
+                  <div>Confidence: {(confidenceScore * 100).toFixed(1)}%</div>
+                )}
               </>
             )}
           </div>

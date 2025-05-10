@@ -8,7 +8,6 @@ const expressionEmojis: { [key: string]: string } = {
   surprised: "😲",
   neutral: "😐",
   sad: "😢",
-  fearful: "😨",
 };
 
 // get keys of expressionEmojis
@@ -103,11 +102,24 @@ export default function ExpressionSequence({ onSuccess }: Props) {
       (a, b) => b[1] - a[1]
     );
     // gets element with highest confidence
-    const [expression, confidence] = sorted[0];
+    //const [expression, confidence] = sorted[0];
 
     const targetExpression = sequenceRef.current[currentIndexRef.current];
+    const confidence = expressionsDetected[targetExpression];
+    console.log(confidence);
     // if top expression matches target expression and with high enough confidence
-    if (expression === targetExpression && confidence > 0.4) {
+    //if (expression === targetExpression && confidence > 0.5) {
+    let target = 0.5; // default target confidence
+    // set target confidence based on the target expression
+    // happy and neutral are easier to hold, sad is harder, surprised/fearful/angry are hardest
+    if (targetExpression == "happy" || targetExpression == "neutral") {
+      target = 0.5;
+    } else if (targetExpression == "sad") {
+      target = 0.4;
+    } else if (targetExpression == "surprised" || targetExpression == "angry") {
+      target = 0.3;
+    }
+    if (confidence > target) {
       if (!holdStartTimeRef.current) {
         holdStartTimeRef.current = Date.now(); // start the timer
       }
@@ -149,24 +161,25 @@ export default function ExpressionSequence({ onSuccess }: Props) {
 
       {stage === "expression" && (
         <>
-          <p
-            style={{
-              fontSize: "20px",
-              fontWeight: "bold",
-              marginTop: "12px",
-              color: "#333",
-            }}
-          >
-            Expression{" "}
-            <span style={{ color: "#4caf50" }}>
-              {currentExpressionIndex + 1}
-            </span>{" "}
-            of {sequenceRef.current.length}
-          </p>
-          <p style={{ fontSize: "24px" }}>
-            Match this expression:{" "}
-            <span style={{ fontSize: "48px" }}>{currentTargetEmoji}</span>
-          </p>
+          <div style={{ textAlign: "center" }}>
+            <p style={{ fontSize: "24px", marginBottom: "12px" }}>
+              Match this expression:
+            </p>
+            <div>
+              <div
+                style={{
+                  lineHeight: "1",
+                  marginBottom: "12px",
+                  textTransform: "capitalize",
+                }}
+              >
+                <span style={{ fontSize: "48px" }}>{currentTargetEmoji} </span>
+                <span style={{ fontSize: "24px" }}>
+                  {sequenceRef.current[currentIndexRef.current]}
+                </span>
+              </div>
+            </div>
+          </div>
           <video
             ref={videoRef}
             autoPlay
@@ -183,6 +196,11 @@ export default function ExpressionSequence({ onSuccess }: Props) {
               margin: "10px auto",
               borderRadius: "5px",
             }}
+            role="progressbar"
+            aria-valuenow={holdProgress}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label="Expression hold progress"
           >
             <div
               style={{
@@ -194,16 +212,32 @@ export default function ExpressionSequence({ onSuccess }: Props) {
               }}
             />
           </div>
-
+          <p
+            style={{
+              fontSize: "20px",
+              fontWeight: "bold",
+              marginTop: "12px",
+              color: "#333",
+            }}
+          >
+            Expression{" "}
+            <span style={{ color: "#4caf50" }}>
+              {currentExpressionIndex + 1}
+            </span>{" "}
+            of {sequenceRef.current.length}
+          </p>
           <button
             onClick={() => {
               if (skipsLeft > 0) {
-                // Replace the current expression with a new one
-                let newExpr;
+                let newExpr: keyof typeof expressionEmojis;
+                const currentExpr =
+                  sequenceRef.current[currentIndexRef.current];
+                skippedExpressionRef.current.add(currentExpr); // Mark the current as skipped
+
                 do {
                   newExpr =
                     expressions[Math.floor(Math.random() * expressions.length)];
-                } while (sequenceRef.current.includes(newExpr)); // avoid repeats
+                } while (skippedExpressionRef.current.has(newExpr)); // Avoid skipped ones
 
                 sequenceRef.current[currentIndexRef.current] = newExpr;
                 setCurrentTargetEmoji(expressionEmojis[newExpr]);
