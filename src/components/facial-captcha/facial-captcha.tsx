@@ -107,17 +107,16 @@ export default function ExpressionSequence({ onSuccess }: Props) {
     const targetExpression = sequenceRef.current[currentIndexRef.current];
     const confidence = expressionsDetected[targetExpression];
     console.log(confidence);
-    // if top expression matches target expression and with high enough confidence
-    //if (expression === targetExpression && confidence > 0.5) {
     let target = 0.5; // default target confidence
-    // set target confidence based on the target expression
     // happy and neutral are easier to hold, sad is harder, surprised/fearful/angry are hardest
     if (targetExpression == "happy" || targetExpression == "neutral") {
-      target = 0.5;
-    } else if (targetExpression == "sad") {
       target = 0.4;
-    } else if (targetExpression == "surprised" || targetExpression == "angry") {
+    } else if (targetExpression == "sad") {
       target = 0.3;
+    } else if (targetExpression == "surprised") {
+      target = 0.2;
+    } else if (targetExpression == "angry") {
+      target = 0.1;
     }
     if (confidence > target) {
       if (!holdStartTimeRef.current) {
