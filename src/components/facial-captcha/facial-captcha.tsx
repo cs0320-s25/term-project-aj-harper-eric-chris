@@ -122,6 +122,9 @@ export default function ExpressionSequence({ onSuccess }: Props) {
       }
     });
 
+    // TODO: MAKE SURE TIMER IS STOPPED WHENEVER VERIFIED/BOT DETECTED.
+    // TODO: CAMERA SHOULD BE STOPPED WHENEVER VERIFIED/BOT DETECTED.
+
     // Check for suspicious activity (all expressions have identical patterns across 5 frames)
     const allExpressions = Object.keys(expressionsDetected);
     if (
@@ -133,7 +136,7 @@ export default function ExpressionSequence({ onSuccess }: Props) {
         const confidences = frameConfidencesRef.current[expr];
         // Check if all confidences for this expression are identical
         return confidences.every(
-          (score) => Math.abs(score - confidences[0]) < 0.000001
+          (score) => Math.abs(score - confidences[0]) < 0.000000001
         );
       });
 
@@ -178,7 +181,7 @@ export default function ExpressionSequence({ onSuccess }: Props) {
         if (nextIndex >= sequenceRef.current.length) {
           // all expressions done
           setStage("success");
-          onSuccess(true);
+          onSuccess(false);
           return;
         } else {
           // move onto the next expression

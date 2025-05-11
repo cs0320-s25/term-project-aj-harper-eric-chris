@@ -410,4 +410,44 @@ describe("ExpressionSequence", () => {
       expect(mockOnSuccess).toHaveBeenCalledWith("timeout");
     });
   });
+
+  it("clears timeout after successful completion", async () => {
+    render(<ExpressionSequence onSuccess={mockOnSuccess} />);
+
+    // Wait for loading to complete
+    await waitFor(() => {
+      expect(screen.getByText(/Match this expression:/i)).toBeInTheDocument();
+    });
+
+    // Complete all expressions
+    for (let i = 0; i < 3; i++) {
+      const targetExpression = screen
+        .getByText(/Match this expression:/i)
+        .nextSibling?.textContent?.toLowerCase() as any;
+
+      setMockExpression(targetExpression);
+
+      // Simulate the interval running for 500ms (holdDuration)
+      for (let j = 0; j < 5; j++) {
+        await act(async () => {
+          jest.advanceTimersByTime(100);
+          await Promise.resolve();
+        });
+      }
+    }
+
+    // Verify success
+    await waitFor(() => {
+      expect(mockOnSuccess).toHaveBeenCalledWith(false);
+    });
+
+    // Fast forward past the timeout
+    await act(async () => {
+      jest.advanceTimersByTime(30000);
+      await Promise.resolve();
+    });
+
+    // Verify that onSuccess was not called again
+    expect(mockOnSuccess).toHaveBeenCalledTimes(1);
+  });
 });
