@@ -58,14 +58,21 @@ const ErrorFallback = ({
 export default function Home() {
   const [captchaVerified, setCaptchaVerified] = useState(false);
   const [isBotDetected, setIsBotDetected] = useState(false);
+  const [isTimeout, setIsTimeout] = useState(false);
   const [selectedCaptchaType, setSelectedCaptchaType] = useState<
     "audio" | "facial"
   >("audio");
 
-  const handleCaptchaSuccess = (botDetected?: boolean) => {
+  const handleCaptchaSuccess = (status: boolean | "timeout") => {
     console.log("CAPTCHA verified successfully!");
     setCaptchaVerified(true);
-    setIsBotDetected(botDetected || false);
+    if (status === "timeout") {
+      setIsTimeout(true);
+      setIsBotDetected(false);
+    } else {
+      setIsTimeout(false);
+      setIsBotDetected(status);
+    }
   };
 
   return (
@@ -88,7 +95,11 @@ export default function Home() {
           >
             <div
               className={`${
-                isBotDetected ? "text-red-500" : "text-green-500"
+                isBotDetected
+                  ? "text-red-500"
+                  : isTimeout
+                  ? "text-yellow-500"
+                  : "text-green-500"
               } mb-4`}
               role="img"
               aria-hidden="true"
@@ -108,6 +119,13 @@ export default function Home() {
                     strokeWidth={2}
                     d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
                   />
+                ) : isTimeout ? (
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
                 ) : (
                   <path
                     strokeLinecap="round"
@@ -125,17 +143,22 @@ export default function Home() {
             >
               {isBotDetected
                 ? "Suspicious Activity Detected"
+                : isTimeout
+                ? "Time's Up!"
                 : "Verification Successful!"}
             </h2>
             <p className="text-gray-600 dark:text-gray-300 mb-4">
               {isBotDetected
                 ? "Please try again with natural facial expressions"
+                : isTimeout
+                ? "You took too long to complete the challenge. Please try again."
                 : "You have successfully verified that you are human."}
             </p>
             <button
               onClick={() => {
                 setCaptchaVerified(false);
                 setIsBotDetected(false);
+                setIsTimeout(false);
               }}
               className="bg-primary-500 hover:bg-primary-600 text-white font-medium py-2 px-4 rounded-md transition-colors"
               aria-label="Try verification again"

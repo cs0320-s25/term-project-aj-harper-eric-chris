@@ -15,10 +15,10 @@ const expressions: (keyof typeof expressionEmojis)[] = Object.keys(
   expressionEmojis
 ) as any;
 
-const holdDuration = 500; // time the user most hold the expression (.5 second)
+const holdDuration = 700; // time the user most hold the expression (.5 second)
 
 type Props = {
-  onSuccess: (isBotDetected?: boolean) => void;
+  onSuccess: (status: boolean | "timeout") => void;
 };
 
 export default function ExpressionSequence({ onSuccess }: Props) {
@@ -34,9 +34,10 @@ export default function ExpressionSequence({ onSuccess }: Props) {
   // Change to store all expression confidences for each frame
   const frameConfidencesRef = useRef<{ [key: string]: number[] }>({});
   const [botDetected, setBotDetected] = useState(false);
+  const timeoutRef = useRef<number | null>(null);
 
   const [stage, setStage] = useState<
-    "loading" | "expression" | "success" | "bot_detected"
+    "loading" | "expression" | "success" | "bot_detected" | "timeout"
   >("loading");
   const [currentTargetEmoji, setCurrentTargetEmoji] = useState(""); // emoji to show the user
   const [currentExpressionIndex, setCurrentExpressionIndex] = useState(0); // which expression in the sequence we're on
@@ -47,6 +48,7 @@ export default function ExpressionSequence({ onSuccess }: Props) {
     loadModels();
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
   }, []);
 
@@ -79,8 +81,15 @@ export default function ExpressionSequence({ onSuccess }: Props) {
     setCurrentTargetEmoji(expressionEmojis[generatedSequence[0]]);
     setStage("expression");
 
-    // Set up interval to process video frames every 100ms
-    intervalRef.current = window.setInterval(processFrame, 100);
+    // Set up interval to process video frames every 50ms
+    intervalRef.current = window.setInterval(processFrame, 50);
+
+    // Set up 30 second timeout
+    timeoutRef.current = window.setTimeout(() => {
+      setStage("timeout");
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      onSuccess("timeout");
+    }, 30000);
   };
 
   // process each frame to detect facial expressions
@@ -124,7 +133,7 @@ export default function ExpressionSequence({ onSuccess }: Props) {
         const confidences = frameConfidencesRef.current[expr];
         // Check if all confidences for this expression are identical
         return confidences.every(
-          (score) => Math.abs(score - confidences[0]) < 0.00001
+          (score) => Math.abs(score - confidences[0]) < 0.000001
         );
       });
 
@@ -169,7 +178,7 @@ export default function ExpressionSequence({ onSuccess }: Props) {
         if (nextIndex >= sequenceRef.current.length) {
           // all expressions done
           setStage("success");
-          onSuccess();
+          onSuccess(true);
           return;
         } else {
           // move onto the next expression
@@ -282,7 +291,7 @@ export default function ExpressionSequence({ onSuccess }: Props) {
               fontSize: "20px",
               fontWeight: "bold",
               marginTop: "12px",
-              color: "#333",
+              color: "var(--foreground)",
             }}
             role="status"
             aria-live="polite"
@@ -345,6 +354,12 @@ export default function ExpressionSequence({ onSuccess }: Props) {
       {stage === "success" && (
         <div role="status" aria-live="polite" aria-label="Challenge completed">
           <p aria-hidden="true">🎉 You completed the sequence!</p>
+        </div>
+      )}
+
+      {stage === "timeout" && (
+        <div role="status" aria-live="polite" aria-label="Challenge timed out">
+          <p aria-hidden="true">⏰ Time's up! Please try again.</p>
         </div>
       )}
     </div>
