@@ -15,7 +15,7 @@ const expressions: (keyof typeof expressionEmojis)[] = Object.keys(
   expressionEmojis
 ) as any;
 
-const holdDuration = 700; // time the user most hold the expression (.5 second)
+const holdDuration = 700; // time the user most hold the expression (.7 second)
 
 type Props = {
   onSuccess: (status: boolean | "timeout") => void;
@@ -34,7 +34,7 @@ export default function ExpressionSequence({ onSuccess }: Props) {
   // Change to store all expression confidences for each frame
   const frameConfidencesRef = useRef<{ [key: string]: number[] }>({});
   const [botDetected, setBotDetected] = useState(false);
-  const timeoutRef = useRef<number | null>(null);
+  const startTimeRef = useRef<number>(Date.now());
 
   const [stage, setStage] = useState<
     "loading" | "expression" | "success" | "bot_detected" | "timeout"
@@ -43,13 +43,21 @@ export default function ExpressionSequence({ onSuccess }: Props) {
   const [currentExpressionIndex, setCurrentExpressionIndex] = useState(0); // which expression in the sequence we're on
   const [holdProgress, setHoldProgress] = useState(0); // progress bar for holding the expression
 
+  // Helper function to clean up timers and camera
+  const cleanup = () => {
+    console.log("Cleaning up...");
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    if (videoRef.current?.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach((track) => track.stop());
+      videoRef.current.srcObject = null;
+    }
+  };
+
   // load the models when the component mounts
   useEffect(() => {
     loadModels();
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
+    return cleanup;
   }, []);
 
   // load face detection and expression recognition models.
@@ -59,6 +67,7 @@ export default function ExpressionSequence({ onSuccess }: Props) {
     await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
     await startVideo();
   };
+
   // start the webcam and generate the expression sequence
   const startVideo = async () => {
     const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
@@ -77,24 +86,27 @@ export default function ExpressionSequence({ onSuccess }: Props) {
     }
 
     sequenceRef.current = generatedSequence;
+    startTimeRef.current = Date.now();
 
     setCurrentTargetEmoji(expressionEmojis[generatedSequence[0]]);
     setStage("expression");
 
     // Set up interval to process video frames every 50ms
     intervalRef.current = window.setInterval(processFrame, 50);
-
-    // Set up 30 second timeout
-    timeoutRef.current = window.setTimeout(() => {
-      setStage("timeout");
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      onSuccess("timeout");
-    }, 30000);
   };
 
   // process each frame to detect facial expressions
   const processFrame = async () => {
     if (!videoRef.current) return;
+
+    // Check for timeout
+    const elapsedTime = Date.now() - startTimeRef.current;
+    if (elapsedTime >= 15000) {
+      setStage("timeout");
+      cleanup();
+      onSuccess("timeout");
+      return;
+    }
 
     const detections = await faceapi
       .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions())
@@ -143,7 +155,7 @@ export default function ExpressionSequence({ onSuccess }: Props) {
       if (isSuspicious) {
         setBotDetected(true);
         setStage("bot_detected");
-        if (intervalRef.current) clearInterval(intervalRef.current);
+        cleanup();
         onSuccess(true);
         return;
       }
@@ -181,6 +193,7 @@ export default function ExpressionSequence({ onSuccess }: Props) {
         if (nextIndex >= sequenceRef.current.length) {
           // all expressions done
           setStage("success");
+          cleanup();
           onSuccess(false);
           return;
         } else {
