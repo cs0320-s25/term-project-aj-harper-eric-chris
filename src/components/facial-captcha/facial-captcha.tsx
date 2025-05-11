@@ -101,7 +101,7 @@ export default function ExpressionSequence({ onSuccess }: Props) {
 
     // Check for timeout
     const elapsedTime = Date.now() - startTimeRef.current;
-    if (elapsedTime >= 15000) {
+    if (elapsedTime >= 20000) {
       setStage("timeout");
       cleanup();
       onSuccess("timeout");
@@ -148,7 +148,7 @@ export default function ExpressionSequence({ onSuccess }: Props) {
         const confidences = frameConfidencesRef.current[expr];
         // Check if all confidences for this expression are identical
         return confidences.every(
-          (score) => Math.abs(score - confidences[0]) < 0.000000001
+          (score) => Math.abs(score - confidences[0]) < 0.0000000001
         );
       });
 

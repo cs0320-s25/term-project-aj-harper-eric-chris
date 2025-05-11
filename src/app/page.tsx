@@ -149,7 +149,7 @@ export default function Home() {
             </h2>
             <p className="text-gray-600 dark:text-gray-300 mb-4">
               {isBotDetected
-                ? "Please try again with natural facial expressions"
+                ? "Please try again."
                 : isTimeout
                 ? "You took too long to complete the challenge. Please try again."
                 : "You have successfully verified that you are human."}
