@@ -390,4 +390,24 @@ describe("ExpressionSequence", () => {
     // Clean up
     clearMockConstantValues();
   });
+
+  it("triggers timeout after 30 seconds", async () => {
+    render(<ExpressionSequence onSuccess={mockOnSuccess} />);
+
+    // Wait for loading to complete
+    await waitFor(() => {
+      expect(screen.getByText(/Match this expression:/i)).toBeInTheDocument();
+    });
+
+    // Fast forward 30 seconds
+    await act(async () => {
+      jest.advanceTimersByTime(30000);
+      await Promise.resolve(); // Let React update
+    });
+
+    // Check that onSuccess was called with timeout
+    await waitFor(() => {
+      expect(mockOnSuccess).toHaveBeenCalledWith("timeout");
+    });
+  });
 });
