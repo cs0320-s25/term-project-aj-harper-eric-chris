@@ -91,8 +91,8 @@ export default function ExpressionSequence({ onSuccess }: Props) {
     setCurrentTargetEmoji(expressionEmojis[generatedSequence[0]]);
     setStage("expression");
 
-    // Set up interval to process video frames every 50ms
-    intervalRef.current = window.setInterval(processFrame, 50);
+    // Set up interval to process video frames every 100ms
+    intervalRef.current = window.setInterval(processFrame, 100);
   };
 
   // process each frame to detect facial expressions
