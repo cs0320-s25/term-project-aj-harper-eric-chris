@@ -21,6 +21,13 @@ type Props = {
   onSuccess: (status: boolean | "timeout") => void;
 };
 
+// Add new types for webcam verification
+type FrameData = {
+  timestamp: number;
+  pixelData: ImageData;
+  faceDetected: boolean;
+};
+
 export default function ExpressionSequence({ onSuccess }: Props) {
   const [skipsLeft, setSkipsLeft] = useState(2); // number of skips the user has
   const videoRef = useRef<HTMLVideoElement>(null); // reference to the video element
@@ -42,6 +49,12 @@ export default function ExpressionSequence({ onSuccess }: Props) {
   const [currentTargetEmoji, setCurrentTargetEmoji] = useState(""); // emoji to show the user
   const [currentExpressionIndex, setCurrentExpressionIndex] = useState(0); // which expression in the sequence we're on
   const [holdProgress, setHoldProgress] = useState(0); // progress bar for holding the expression
+  const [webcamVerified, setWebcamVerified] = useState(false);
+  const frameHistoryRef = useRef<FrameData[]>([]);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const lastFrameTimeRef = useRef<number>(0);
+  const frameCountRef = useRef<number>(0);
+  const suspiciousFrameCountRef = useRef<number>(0);
 
   // Helper function to clean up timers and camera
   const cleanup = () => {
@@ -68,36 +81,138 @@ export default function ExpressionSequence({ onSuccess }: Props) {
     await startVideo();
   };
 
-  // start the webcam and generate the expression sequence
-  const startVideo = async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
-    if (videoRef.current) videoRef.current.srcObject = stream;
-
-    // Generate a random sequence of 3 expressions, ensuring no repeats in a row
-    const generatedSequence: (keyof typeof expressionEmojis)[] = [];
-
-    for (let i = 0; i < 3; i++) {
-      let nextExpr: keyof typeof expressionEmojis;
-      do {
-        nextExpr = expressions[Math.floor(Math.random() * expressions.length)];
-      } while (i > 0 && nextExpr === generatedSequence[i - 1]); // avoid same as previous
-
-      generatedSequence.push(nextExpr);
+  // Add new function to verify webcam
+  const verifyWebcam = async (stream: MediaStream) => {
+    // Check if the stream is from a real webcam
+    const videoTrack = stream.getVideoTracks()[0];
+    if (!videoTrack) {
+      throw new Error("No video track found");
     }
 
-    sequenceRef.current = generatedSequence;
-    startTimeRef.current = Date.now();
+    // Verify it's a real webcam (not a screen share or virtual camera)
+    const capabilities = videoTrack.getCapabilities();
+    if (!capabilities || !capabilities.width || !capabilities.height) {
+      throw new Error("Invalid webcam capabilities");
+    }
 
-    setCurrentTargetEmoji(expressionEmojis[generatedSequence[0]]);
-    setStage("expression");
+    // Check if it's a virtual camera (some virtual cameras have specific labels)
+    const label = videoTrack.label.toLowerCase();
+    if (label.includes("virtual") || label.includes("screen") || label.includes("obs")) {
+      throw new Error("Virtual camera detected");
+    }
 
-    // Set up interval to process video frames every 100ms
-    intervalRef.current = window.setInterval(processFrame, 150);
+    return true;
   };
 
-  // process each frame to detect facial expressions
+  // Add new function to analyze frame variations
+  const analyzeFrameVariations = (currentFrame: FrameData) => {
+    if (frameHistoryRef.current.length < 2) {
+      frameHistoryRef.current.push(currentFrame);
+      return true;
+    }
+
+    const previousFrame = frameHistoryRef.current[frameHistoryRef.current.length - 1];
+    
+    // Check frame timing
+    const timeDiff = currentFrame.timestamp - previousFrame.timestamp;
+    if (timeDiff < 30 || timeDiff > 200) { // Expect frames between 30-200ms apart
+      suspiciousFrameCountRef.current++;
+      return false;
+    }
+
+    // Check for pixel variations if face is detected
+    if (currentFrame.faceDetected && previousFrame.faceDetected) {
+      const currentData = currentFrame.pixelData.data;
+      const previousData = previousFrame.pixelData.data;
+      let diffCount = 0;
+      const sampleSize = Math.min(currentData.length, previousData.length);
+      
+      // Sample pixels to check for variations
+      for (let i = 0; i < sampleSize; i += 4) {
+        if (Math.abs(currentData[i] - previousData[i]) > 5) {
+          diffCount++;
+        }
+      }
+
+      const variationRatio = diffCount / (sampleSize / 4);
+      if (variationRatio < 0.01) { // Less than 1% variation
+        suspiciousFrameCountRef.current++;
+        return false;
+      }
+    }
+
+    // Update frame history
+    frameHistoryRef.current.push(currentFrame);
+    if (frameHistoryRef.current.length > 5) {
+      frameHistoryRef.current.shift();
+    }
+
+    return true;
+  };
+
+  // Add function to initialize canvas
+  const initializeCanvas = () => {
+    if (!canvasRef.current) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 640;
+      canvas.height = 480;
+      canvasRef.current = canvas;
+    }
+  };
+
+  // Modify startVideo function
+  const startVideo = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          facingMode: "user"
+        } 
+      });
+
+      // Verify webcam
+      await verifyWebcam(stream);
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        initializeCanvas();
+      }
+
+      // Generate a random sequence of 3 expressions, ensuring no repeats in a row
+      const generatedSequence: (keyof typeof expressionEmojis)[] = [];
+
+      for (let i = 0; i < 3; i++) {
+        let nextExpr: keyof typeof expressionEmojis;
+        do {
+          nextExpr = expressions[Math.floor(Math.random() * expressions.length)];
+        } while (i > 0 && nextExpr === generatedSequence[i - 1]); // avoid same as previous
+
+        generatedSequence.push(nextExpr);
+      }
+
+      sequenceRef.current = generatedSequence;
+      setCurrentTargetEmoji(expressionEmojis[generatedSequence[0]]);
+      setStage("expression");
+
+      setWebcamVerified(true);
+      startTimeRef.current = Date.now();
+      frameCountRef.current = 0;
+      suspiciousFrameCountRef.current = 0;
+
+      // Set up interval to process video frames
+      intervalRef.current = window.setInterval(processFrame, 150);
+    } catch (error) {
+      console.error("Webcam verification failed:", error);
+      setStage("bot_detected");
+      cleanup();
+      onSuccess(true);
+    }
+  };
+
+  // Modify processFrame function
   const processFrame = async () => {
-    if (!videoRef.current) return;
+    if (!videoRef.current || !canvasRef.current) return;
 
     // Check for timeout
     const elapsedTime = Date.now() - startTimeRef.current;
@@ -108,9 +223,37 @@ export default function ExpressionSequence({ onSuccess }: Props) {
       return;
     }
 
+    // Capture current frame for analysis
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+    const currentFrame: FrameData = {
+      timestamp: Date.now(),
+      pixelData: ctx.getImageData(0, 0, canvas.width, canvas.height),
+      faceDetected: false
+    };
+
     const detections = await faceapi
       .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions())
       .withFaceExpressions();
+
+    currentFrame.faceDetected = !!detections;
+
+    // Analyze frame variations
+    if (!analyzeFrameVariations(currentFrame)) {
+      if (suspiciousFrameCountRef.current > 10) {
+        setBotDetected(true);
+        setStage("bot_detected");
+        cleanup();
+        onSuccess(true);
+        return;
+      }
+    } else {
+      suspiciousFrameCountRef.current = Math.max(0, suspiciousFrameCountRef.current - 1);
+    }
+
     // if no face or expressions detected, reset progress
     if (!detections || !detections.expressions) {
       holdStartTimeRef.current = null;
@@ -218,6 +361,12 @@ export default function ExpressionSequence({ onSuccess }: Props) {
         <p role="status" aria-live="polite">
           Loading facial recognition models...
         </p>
+      )}
+
+      {stage === "expression" && !webcamVerified && (
+        <div role="alert" aria-live="assertive">
+          <p style={{ color: "red" }}>Verifying webcam...</p>
+        </div>
       )}
 
       {stage === "expression" && (
