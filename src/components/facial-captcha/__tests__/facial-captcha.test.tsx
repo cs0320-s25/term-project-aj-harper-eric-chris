@@ -11,6 +11,8 @@ import ExpressionSequence from "../facial-captcha";
 import {
   setMockExpression,
   clearMockExpression,
+  setMockConstantValues,
+  clearMockConstantValues,
 } from "../../../lib/mockFaceApi";
 
 // Mock the face-api.js module
@@ -22,6 +24,7 @@ describe("ExpressionSequence", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     clearMockExpression();
+    clearMockConstantValues();
     jest.useFakeTimers();
   });
 
@@ -31,7 +34,9 @@ describe("ExpressionSequence", () => {
 
   it("renders loading state initially", () => {
     render(<ExpressionSequence onSuccess={mockOnSuccess} />);
-    expect(screen.getByText("Loading models...")).toBeInTheDocument();
+    expect(
+      screen.getByText("Loading facial recognition models...")
+    ).toBeInTheDocument();
   });
 
   it("shows expression challenge after loading", async () => {
@@ -54,10 +59,11 @@ describe("ExpressionSequence", () => {
     // Complete all three expressions in sequence
     for (let i = 0; i < 3; i++) {
       // Verify current expression number
-      const expressionCounter = screen.getByText(/Expression/i, {
-        selector: 'p[style*="font-size: 20px"]',
-      });
-      expect(expressionCounter).toHaveTextContent(`${i + 1} of 3`);
+      expect(
+        screen.getByRole("status", {
+          name: new RegExp(`expression ${i + 1} of 3`, "i"),
+        })
+      ).toBeInTheDocument();
 
       // Get the current target expression
       const targetExpression = screen
@@ -78,17 +84,16 @@ describe("ExpressionSequence", () => {
       // Wait for the next expression or success message
       await waitFor(() => {
         if (i < 2) {
-          // For first two expressions, we should see the next expression
           expect(
             screen.getByText(/Match this expression:/i)
           ).toBeInTheDocument();
           // Verify expression number has incremented
-          const nextExpressionCounter = screen.getByText(/Expression/i, {
-            selector: 'p[style*="font-size: 20px"]',
-          });
-          expect(nextExpressionCounter).toHaveTextContent(`${i + 2} of 3`);
+          expect(
+            screen.getByRole("status", {
+              name: new RegExp(`expression ${i + 2} of 3`, "i"),
+            })
+          ).toBeInTheDocument();
         } else {
-          // For the last expression, we should see success
           expect(
             screen.getByText("🎉 You completed the sequence!")
           ).toBeInTheDocument();
@@ -113,8 +118,8 @@ describe("ExpressionSequence", () => {
       .getByText(/Match this expression:/i)
       .nextSibling?.textContent?.toLowerCase();
 
-    // Find and click the skip button
-    const skipButton = screen.getByText(/Skip/i);
+    // Find and click the skip button using aria-label
+    const skipButton = screen.getByRole("button", { name: /skip expression/i });
     fireEvent.click(skipButton);
 
     // Wait for the expression to change
@@ -137,10 +142,11 @@ describe("ExpressionSequence", () => {
     // Complete all expressions
     for (let i = 0; i < 3; i++) {
       // Verify current expression number
-      const expressionCounter = screen.getByText(/Expression/i, {
-        selector: 'p[style*="font-size: 20px"]',
-      });
-      expect(expressionCounter).toHaveTextContent(`${i + 1} of 3`);
+      expect(
+        screen.getByRole("status", {
+          name: new RegExp(`expression ${i + 1} of 3`, "i"),
+        })
+      ).toBeInTheDocument();
 
       const targetExpression = screen
         .getByText(/Match this expression:/i)
@@ -163,10 +169,11 @@ describe("ExpressionSequence", () => {
             screen.getByText(/Match this expression:/i)
           ).toBeInTheDocument();
           // Verify expression number has incremented
-          const nextExpressionCounter = screen.getByText(/Expression/i, {
-            selector: 'p[style*="font-size: 20px"]',
-          });
-          expect(nextExpressionCounter).toHaveTextContent(`${i + 2} of 3`);
+          expect(
+            screen.getByRole("status", {
+              name: new RegExp(`expression ${i + 2} of 3`, "i"),
+            })
+          ).toBeInTheDocument();
         } else {
           expect(
             screen.getByText("🎉 You completed the sequence!")
@@ -187,10 +194,11 @@ describe("ExpressionSequence", () => {
     // Complete only two expressions
     for (let i = 0; i < 2; i++) {
       // Verify current expression number
-      const expressionCounter = screen.getByText(/Expression/i, {
-        selector: 'p[style*="font-size: 20px"]',
-      });
-      expect(expressionCounter).toHaveTextContent(`${i + 1} of 3`);
+      expect(
+        screen.getByRole("status", {
+          name: new RegExp(`expression ${i + 1} of 3`, "i"),
+        })
+      ).toBeInTheDocument();
 
       const targetExpression = screen
         .getByText(/Match this expression:/i)
@@ -210,10 +218,11 @@ describe("ExpressionSequence", () => {
       await waitFor(() => {
         expect(screen.getByText(/Match this expression:/i)).toBeInTheDocument();
         // Verify expression number has incremented
-        const nextExpressionCounter = screen.getByText(/Expression/i, {
-          selector: 'p[style*="font-size: 20px"]',
-        });
-        expect(nextExpressionCounter).toHaveTextContent(`${i + 2} of 3`);
+        expect(
+          screen.getByRole("status", {
+            name: new RegExp(`expression ${i + 2} of 3`, "i"),
+          })
+        ).toBeInTheDocument();
       });
     }
 
@@ -235,10 +244,9 @@ describe("ExpressionSequence", () => {
 
     // Complete only one expression
     // Verify current expression number
-    const expressionCounter = screen.getByText(/Expression/i, {
-      selector: 'p[style*="font-size: 20px"]',
-    });
-    expect(expressionCounter).toHaveTextContent("1 of 3");
+    expect(
+      screen.getByRole("status", { name: /expression 1 of 3/i })
+    ).toBeInTheDocument();
 
     const targetExpression = screen
       .getByText(/Match this expression:/i)
@@ -258,10 +266,9 @@ describe("ExpressionSequence", () => {
     await waitFor(() => {
       expect(screen.getByText(/Match this expression:/i)).toBeInTheDocument();
       // Verify expression number has incremented
-      const nextExpressionCounter = screen.getByText(/Expression/i, {
-        selector: 'p[style*="font-size: 20px"]',
-      });
-      expect(nextExpressionCounter).toHaveTextContent("2 of 3");
+      expect(
+        screen.getByRole("status", { name: /expression 2 of 3/i })
+      ).toBeInTheDocument();
     });
 
     // Verify that success message is NOT shown
@@ -283,33 +290,34 @@ describe("ExpressionSequence", () => {
     // Skip first two expressions
     for (let i = 0; i < 2; i++) {
       // Verify current expression number stays at 1 of 3
-      const expressionCounter = screen.getByText(/Expression/i, {
-        selector: 'p[style*="font-size: 20px"]',
-      });
-      expect(expressionCounter).toHaveTextContent("1 of 3");
+      expect(
+        screen.getByRole("status", { name: /expression 1 of 3/i })
+      ).toBeInTheDocument();
 
-      // Find and click the skip button
-      const skipButton = screen.getByText(/Skip/i);
+      // Find and click the skip button using aria-label
+      const skipButton = screen.getByRole("button", {
+        name: /skip expression/i,
+      });
       fireEvent.click(skipButton);
 
       // Wait for the next expression
       await waitFor(() => {
         expect(screen.getByText(/Match this expression:/i)).toBeInTheDocument();
         // Verify expression number still shows 1 of 3
-        const nextExpressionCounter = screen.getByText(/Expression/i, {
-          selector: 'p[style*="font-size: 20px"]',
-        });
-        expect(nextExpressionCounter).toHaveTextContent("1 of 3");
+        expect(
+          screen.getByRole("status", { name: /expression 1 of 3/i })
+        ).toBeInTheDocument();
       });
     }
 
     // Complete all three expressions
     for (let i = 0; i < 3; i++) {
       // Verify current expression number
-      const expressionCounter = screen.getByText(/Expression/i, {
-        selector: 'p[style*="font-size: 20px"]',
-      });
-      expect(expressionCounter).toHaveTextContent(`${i + 1} of 3`);
+      expect(
+        screen.getByRole("status", {
+          name: new RegExp(`expression ${i + 1} of 3`, "i"),
+        })
+      ).toBeInTheDocument();
 
       const targetExpression = screen
         .getByText(/Match this expression:/i)
@@ -332,10 +340,11 @@ describe("ExpressionSequence", () => {
             screen.getByText(/Match this expression:/i)
           ).toBeInTheDocument();
           // Verify expression number has incremented
-          const nextExpressionCounter = screen.getByText(/Expression/i, {
-            selector: 'p[style*="font-size: 20px"]',
-          });
-          expect(nextExpressionCounter).toHaveTextContent(`${i + 2} of 3`);
+          expect(
+            screen.getByRole("status", {
+              name: new RegExp(`expression ${i + 2} of 3`, "i"),
+            })
+          ).toBeInTheDocument();
         } else {
           expect(
             screen.getByText("🎉 You completed the sequence!")
@@ -346,5 +355,59 @@ describe("ExpressionSequence", () => {
 
     // Verify that onSuccess was called after completing all expressions
     expect(mockOnSuccess).toHaveBeenCalled();
+  });
+
+  it("detects bot when expression values are constant", async () => {
+    render(<ExpressionSequence onSuccess={mockOnSuccess} />);
+
+    // Wait for loading to complete
+    await waitFor(() => {
+      expect(screen.getByText(/Match this expression:/i)).toBeInTheDocument();
+    });
+
+    // Get the current target expression
+    const targetExpression = screen
+      .getByText(/Match this expression:/i)
+      .nextSibling?.textContent?.toLowerCase() as any;
+
+    // Set constant values for bot detection
+    setMockConstantValues(true);
+    setMockExpression(targetExpression);
+
+    // Simulate the interval running for 500ms (holdDuration) with constant values
+    for (let j = 0; j < 5; j++) {
+      await act(async () => {
+        jest.advanceTimersByTime(100); // Advance by 100ms each time
+        await Promise.resolve(); // Let React update
+      });
+    }
+
+    // Wait for onSuccess to be called with bot detection
+    await waitFor(() => {
+      expect(mockOnSuccess).toHaveBeenCalledWith(true); // true indicates bot detected
+    });
+
+    // Clean up
+    clearMockConstantValues();
+  });
+
+  it("triggers timeout after 30 seconds", async () => {
+    render(<ExpressionSequence onSuccess={mockOnSuccess} />);
+
+    // Wait for loading to complete
+    await waitFor(() => {
+      expect(screen.getByText(/Match this expression:/i)).toBeInTheDocument();
+    });
+
+    // Fast forward 30 seconds
+    await act(async () => {
+      jest.advanceTimersByTime(30000);
+      await Promise.resolve(); // Let React update
+    });
+
+    // Check that onSuccess was called with timeout
+    await waitFor(() => {
+      expect(mockOnSuccess).toHaveBeenCalledWith("timeout");
+    });
   });
 });
