@@ -8,13 +8,12 @@ interface PitchVisualizerProps {
   stage: string;
 }
 
-const PitchVisualizer: React.FC<PitchVisualizerProps> = ({
+export function PitchVisualizer({
   userFrequency,
   targetFrequency,
   isRecording,
   stage,
-}) => {
-  // Scale for visualization - how much to move per Hz difference
+}: PitchVisualizerProps) {
   // Set a reference point for visualization
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -53,19 +52,31 @@ const PitchVisualizer: React.FC<PitchVisualizerProps> = ({
   // When no frequency detected, just show the prompt
   if (!hasSound) {
     return (
-      <div className="flex flex-col items-center justify-center h-full bg-gray-900">
+      <div
+        className="flex flex-col items-center justify-center h-full bg-gray-900"
+        role="img"
+        aria-label={
+          stage === "recording"
+            ? "Make a sound to match the target frequency"
+            : stage === "demo"
+            ? `Listening to target tone at ${targetFrequency} Hz`
+            : stage === "bot-detected"
+            ? "Bot detection alert"
+            : "Ready to start the audio challenge"
+        }
+      >
         {stage === "recording" ? (
-          <div className="text-gray-300 text-center">
+          <div className="text-gray-300 text-center" aria-live="polite">
             <p className="text-xl mb-2">Make a sound</p>
             <p className="text-sm">Sing or hum to match the target frequency</p>
           </div>
         ) : stage === "demo" ? (
-          <div className="text-white text-center">
+          <div className="text-white text-center" aria-live="polite">
             <p className="text-xl">Listen carefully</p>
             <p className="text-sm">Target: {targetFrequency} Hz</p>
           </div>
         ) : stage === "bot-detected" ? (
-          <div className="text-red-400 text-center">
+          <div className="text-red-400 text-center" aria-live="assertive">
             <p className="text-xl">Bot Detected</p>
             <p className="text-sm">Synthetic audio is not allowed</p>
           </div>
@@ -82,8 +93,12 @@ const PitchVisualizer: React.FC<PitchVisualizerProps> = ({
   // Additional special case for bot detection when frequency > 0
   if (stage === "bot-detected") {
     return (
-      <div className="flex flex-col items-center justify-center h-full bg-gray-900">
-        <div className="text-red-400 text-center">
+      <div
+        className="flex flex-col items-center justify-center h-full bg-gray-900"
+        role="img"
+        aria-label="Bot detection alert: synthetic audio detected"
+      >
+        <div className="text-red-400 text-center" aria-live="assertive">
           <p className="text-xl">Bot Detected</p>
           <p className="text-sm">Synthetic audio is not allowed</p>
         </div>
@@ -101,11 +116,22 @@ const PitchVisualizer: React.FC<PitchVisualizerProps> = ({
   const { noteInfo, percentFromTarget, matchConfidence } =
     calculateNotePosition(userFrequency || 0, targetFrequency);
 
+  // Determine aria-label based on pitch match status
+  const pitchStatusLabel = isMatch
+    ? "Your pitch matches the target!"
+    : percentFromTarget < 0
+    ? "Your pitch is too low, try higher"
+    : "Your pitch is too high, try lower";
+
   return (
     <div
       className={`flex flex-col items-center justify-between h-full py-4 bg-gray-900 ${
         isTransitioning ? "animate-fadeIn" : ""
       }`}
+      role="img"
+      aria-label={`Pitch visualizer: ${Math.round(
+        userFrequency
+      )} Hz. ${pitchStatusLabel}`}
     >
       {/* Top info area */}
       <div className="text-center mb-2 px-4">
@@ -127,6 +153,7 @@ const PitchVisualizer: React.FC<PitchVisualizerProps> = ({
         className="flex-grow w-full max-w-sm relative mx-auto mb-4"
         ref={containerRef}
         style={{ height: "60%" }}
+        aria-hidden="true" // Hide from screen readers as we provide status with aria-live regions
       >
         {/* Vertical scale background */}
         <div className="absolute inset-0 flex flex-col justify-between px-8">
@@ -184,6 +211,7 @@ const PitchVisualizer: React.FC<PitchVisualizerProps> = ({
                   className="h-6 w-6 text-white"
                   viewBox="0 0 20 20"
                   fill="currentColor"
+                  aria-hidden="true"
                 >
                   <path
                     fillRule="evenodd"
@@ -208,9 +236,20 @@ const PitchVisualizer: React.FC<PitchVisualizerProps> = ({
           </div>
         )}
       </div>
+
+      {/* Accessibility status indicator (visually hidden) */}
+      <div className="sr-only" aria-live="polite">
+        {isMatch
+          ? "Pitch match successful! Keep holding this tone."
+          : `Your frequency is ${Math.round(userFrequency)} Hz. ${
+              percentFromTarget < 0
+                ? "Try raising your pitch"
+                : "Try lowering your pitch"
+            } to match the target.`}
+      </div>
     </div>
   );
-};
+}
 
 // Helper function to calculate position information for visualization
 function calculateNotePosition(
@@ -280,4 +319,5 @@ function getPitchColor(percentFromTarget: number, isMatch: boolean): string {
   }
 }
 
+// Default export for compatibility
 export default PitchVisualizer;

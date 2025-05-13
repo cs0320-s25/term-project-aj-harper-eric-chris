@@ -1,5 +1,3 @@
-"use client";
-
 import React, { useState, useEffect, useRef } from "react";
 import PitchVisualizer from "./PitchVisualizer";
 import { defaultToneDetector, DetectionResult } from "../../lib/toneDetector";
@@ -8,7 +6,7 @@ interface AudioCaptchaProps {
   onSuccess: () => void;
 }
 
-const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
+export function AudioCaptcha({ onSuccess }: AudioCaptchaProps) {
   // State for challenge data
   const [challengeId, setChallengeId] = useState<string>("");
   const [targetFrequency, setTargetFrequency] = useState<number>(0);
@@ -30,6 +28,7 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
     | "success"
     | "failure"
     | "bot-detected"
+    | "permission-error"
   >("initial");
 
   // Additional state for error messages
@@ -59,6 +58,7 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
   const recordedFrequenciesRef = useRef<number[]>([]);
   const recordedResultsRef = useRef<DetectionResult[]>([]);
   const isRecordingRef = useRef(false);
+  const successTriggeredRef = useRef(false); // Track if success has been triggered to prevent auto-pass to next round
 
   // Initialize on mount
   useEffect(() => {
@@ -319,7 +319,7 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
     } catch (error) {
       console.error("Error accessing microphone:", error);
       setMicrophoneAccess(false);
-      setStage("failure");
+      setStage("permission-error");
       return false;
     }
   };
@@ -478,6 +478,10 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
       }
       // If we already know the match was achieved, go straight to success
       if (matchAchieved) {
+        // Prevent auto-pass to next round by checking if success was already triggered
+        if (successTriggeredRef.current) return;
+
+        successTriggeredRef.current = true;
         setStage("success");
         onSuccess();
         return;
@@ -502,6 +506,10 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
 
       // Need at least 3 consecutive matching samples for a success
       if (maxConsecutiveMatches >= 3) {
+        // Prevent auto-pass to next round by checking if success was already triggered
+        if (successTriggeredRef.current) return;
+
+        successTriggeredRef.current = true;
         setStage("success");
         onSuccess();
       } else {
@@ -538,6 +546,9 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
     setRecordingTimeLeft(0);
     setFailureMessage("");
     setBotDetectionReason("");
+
+    // Reset success triggered flag
+    successTriggeredRef.current = false;
 
     // Clear any stored recordings
     recordedFrequenciesRef.current = [];
@@ -582,8 +593,13 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
 
         {/* Recording indicator with countdown */}
         {isRecording && (
-          <div className="absolute top-2 right-2 bg-red-500 text-white px-3 py-1 rounded-full text-xs flex items-center">
-            <span className="animate-pulse mr-1">●</span>
+          <div
+            className="absolute top-2 right-2 bg-red-500 text-white px-3 py-1 rounded-full text-xs flex items-center"
+            aria-live="polite"
+          >
+            <span className="animate-pulse mr-1" aria-hidden="true">
+              ●
+            </span>
             <span>
               Recording {recordingTimeLeft > 0 ? `(${recordingTimeLeft}s)` : ""}
             </span>
@@ -604,6 +620,7 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
             <button
               onClick={handleStart}
               className="w-full bg-primary-500 hover:bg-primary-600 text-white py-2 px-4 rounded-md transition-colors"
+              aria-label="Start audio challenge"
             >
               Start
             </button>
@@ -611,7 +628,10 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
         )}
 
         {stage === "demo" && (
-          <div className="bg-blue-50 dark:bg-blue-900 p-4 rounded-md">
+          <div
+            className="bg-blue-50 dark:bg-blue-900 p-4 rounded-md"
+            aria-live="polite"
+          >
             <p className="text-sm text-blue-700 dark:text-blue-300">
               <span className="font-semibold">Listen carefully:</span> You will
               need to mimic this tone with your voice.
@@ -621,7 +641,10 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
 
         {stage === "recording" && (
           <div>
-            <div className="bg-green-50 dark:bg-green-900 p-4 rounded-md mb-4">
+            <div
+              className="bg-green-50 dark:bg-green-900 p-4 rounded-md mb-4"
+              aria-live="polite"
+            >
               <p className="text-sm text-green-700 dark:text-green-300">
                 <span className="font-semibold">Your turn:</span> Mimic the tone
                 you just heard. Maintain the correct pitch for 2 seconds to
@@ -638,6 +661,13 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
                   : "bg-primary-500 hover:bg-primary-600"
               } text-white py-2 px-4 rounded-md transition-colors`}
               disabled={isRecording}
+              aria-label={
+                isRecording
+                  ? `Recording in progress (${recordingTimeLeft}s left)`
+                  : microphoneReady
+                  ? "Record your voice again"
+                  : "Start recording your voice"
+              }
             >
               {isRecording
                 ? `Recording (${recordingTimeLeft}s)`
@@ -649,8 +679,12 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
         )}
 
         {stage === "analyzing" && (
-          <div className="text-center py-4">
-            <div className="w-12 h-12 border-t-2 border-blue-500 rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="text-center py-4" aria-live="polite">
+            <div
+              className="w-12 h-12 border-t-2 border-blue-500 rounded-full animate-spin mx-auto mb-4"
+              role="status"
+              aria-label="Analyzing your tone"
+            ></div>
             <p className="text-gray-600 dark:text-gray-300">
               Analyzing your tone...
             </p>
@@ -658,7 +692,10 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
         )}
 
         {stage === "success" && (
-          <div className="bg-green-50 dark:bg-green-900 p-4 rounded-md text-center">
+          <div
+            className="bg-green-50 dark:bg-green-900 p-4 rounded-md text-center"
+            aria-live="polite"
+          >
             <div className="text-green-500 mb-2">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -666,6 +703,7 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
+                aria-hidden="true"
               >
                 <path
                   strokeLinecap="round"
@@ -685,7 +723,10 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
         )}
 
         {stage === "failure" && (
-          <div className="bg-red-50 dark:bg-red-900 p-4 rounded-md text-center">
+          <div
+            className="bg-red-50 dark:bg-red-900 p-4 rounded-md text-center"
+            aria-live="assertive"
+          >
             <div className="text-red-500 mb-2">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -693,6 +734,7 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
+                aria-hidden="true"
               >
                 <path
                   strokeLinecap="round"
@@ -714,14 +756,18 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
             <button
               onClick={handleRetry}
               className="bg-red-600 hover:bg-red-700 text-white py-2 px-6 rounded-md transition-colors"
+              aria-label="Try the audio challenge again"
             >
               Try Again
             </button>
           </div>
         )}
 
-        {stage === "bot-detected" && (
-          <div className="bg-red-50 dark:bg-red-900 p-4 rounded-md text-center">
+        {stage === "permission-error" && (
+          <div
+            className="bg-red-50 dark:bg-red-900 p-4 rounded-md text-center"
+            aria-live="assertive"
+          >
             <div className="text-red-500 mb-2">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -729,6 +775,47 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                />
+              </svg>
+            </div>
+            <h3 className="text-lg font-medium mb-2 text-red-700 dark:text-red-300">
+              Microphone Access Required
+            </h3>
+            <p className="text-sm text-red-600 dark:text-red-400 mb-4">
+              Please allow microphone access to use the audio tone verification.
+              Your microphone is used only for verification and no audio is
+              stored.
+            </p>
+            <button
+              onClick={handleRetry}
+              className="bg-red-600 hover:bg-red-700 text-white py-2 px-6 rounded-md transition-colors"
+              aria-label="Try again with microphone access"
+            >
+              Try Again
+            </button>
+          </div>
+        )}
+
+        {stage === "bot-detected" && (
+          <div
+            className="bg-red-50 dark:bg-red-900 p-4 rounded-md text-center"
+            aria-live="assertive"
+          >
+            <div className="text-red-500 mb-2">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-12 w-12 mx-auto"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                aria-hidden="true"
               >
                 <path
                   strokeLinecap="round"
@@ -752,6 +839,7 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
       </div>
     </div>
   );
-};
+}
 
+// Default export for compatibility
 export default AudioCaptcha;

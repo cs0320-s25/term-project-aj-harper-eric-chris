@@ -1,13 +1,19 @@
-# MimiCaptcha
+# MimicCaptcha
 
-A multi-modal CAPTCHA system based on human mimicry. This package provides facial and audio verification challenges to help protect your web applications from bots.
+A modern, accessible CAPTCHA alternative for React applications that uses mimicry-based human verification.
+
+![MimicCaptcha](https://img.shields.io/badge/MimicCaptcha-v0.1.0-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+![React](https://img.shields.io/badge/React-18.x-61dafb)
 
 ## Features
 
-- **Facial Captcha**: Requires users to mimic a sequence of facial expressions
-- **Audio Captcha**: Requires users to match a specific sound frequency with their voice
-- **Multi-modal**: Choose between facial, audio, or both verification methods
-- **Easy Integration**: Simple React components that can be integrated into any form
+- **Dual Verification Modes**: Audio tone mimicry and facial expression mimicry
+- **Accessibility-First Design**: Built with WCAG guidelines in mind
+- **Highly Customizable**: Configure difficulty, attempts, size, and more
+- **Standalone**: No external API dependencies, works locally
+- **Developer-Friendly**: Simple API with TypeScript support
+- **Zero Next.js Dependencies**: Works with any React framework
 
 ## Installation
 
@@ -15,244 +21,131 @@ A multi-modal CAPTCHA system based on human mimicry. This package provides facia
 npm install mimicaptcha
 ```
 
-After installation, you need to:
+After installation, the post-install script will prompt you to set up the face detection models:
 
-1. **Copy the facial recognition models**:
+```
+🤖 MimicCaptcha - Post-installation Setup 🤖
 
-   ```bash
-   mkdir -p public/models
-   cp node_modules/mimicaptcha/dist/models/* public/models/
-   ```
+The facial recognition captcha requires model files to work properly.
+Would you like to copy the face detection models? (Y/n):
+```
 
-2. **Install styling dependencies** (if not already installed):
-
-   ```bash
-   # If you're using animations
-   npm install framer-motion@latest
-
-   # If you're using headless UI components
-   npm install @headlessui/react@latest
-   ```
+If you choose yes, the models will be copied to your project's public directory.
 
 ## Usage
 
 ### Basic Usage
 
 ```jsx
-import { MimiCaptcha } from "mimicaptcha";
+import React from "react";
+import { MimicCaptcha } from "mimicaptcha";
 
 function MyForm() {
-  const handleCaptchaSuccess = () => {
-    console.log("Captcha verification successful!");
-    // Proceed with form submission
+  const handleSuccess = () => {
+    console.log("Human verification successful!");
+    // Allow form submission or other actions
   };
 
   return (
-    <form>
-      {/* Your form fields */}
+    <div className="form-container">
+      <h2>Contact Form</h2>
+      <form>
+        {/* Your form fields */}
 
-      <MimiCaptcha onSuccess={handleCaptchaSuccess} />
+        <div className="captcha-container">
+          <MimicCaptcha onSuccess={handleSuccess} />
+        </div>
 
-      <button type="submit">Submit</button>
-    </form>
+        <button type="submit">Submit</button>
+      </form>
+    </div>
   );
 }
 ```
 
-### Facial Verification Only
+### Advanced Configuration
 
 ```jsx
-import { FacialCaptcha } from "mimicaptcha";
+import React from "react";
+import { MimicCaptcha } from "mimicaptcha";
 
-function MyForm() {
+function AdvancedForm() {
+  const handleSuccess = () => {
+    console.log("Verification successful!");
+  };
+
+  const handleFailure = () => {
+    console.log("Maximum attempts reached");
+  };
+
   return (
-    <form>
-      {/* Your form fields */}
-
-      <FacialCaptcha onSuccess={() => console.log("Verified!")} />
-
-      <button type="submit">Submit</button>
-    </form>
+    <MimicCaptcha
+      onSuccess={handleSuccess}
+      onFailure={handleFailure}
+      defaultType="facial"
+      showTypeSwitcher={true}
+      maxAttempts={5}
+      difficulty="hard"
+      size="large"
+      darkMode={true}
+      showSuccessMessage={true}
+      successMessage="Great job, human!"
+      successMessageDuration={2000}
+    />
   );
 }
 ```
 
-### Audio Verification Only
+## Configuration Options
 
-```jsx
-import { AudioCaptcha } from "mimicaptcha";
+| Prop                     | Type                              | Default                            | Description                                              |
+| ------------------------ | --------------------------------- | ---------------------------------- | -------------------------------------------------------- |
+| `onSuccess`              | `() => void`                      | (required)                         | Callback function when verification is successful        |
+| `onFailure`              | `() => void`                      | `undefined`                        | Callback when max attempts are reached                   |
+| `defaultType`            | `"audio" \| "facial"`             | `"audio"`                          | Initial captcha type to show                             |
+| `showTypeSwitcher`       | `boolean`                         | `true`                             | Whether to show tabs for switching between captcha types |
+| `maxAttempts`            | `number`                          | `3`                                | Maximum number of attempts allowed                       |
+| `difficulty`             | `"easy" \| "medium" \| "hard"`    | `"medium"`                         | Difficulty level for the captcha                         |
+| `size`                   | `"small" \| "default" \| "large"` | `"default"`                        | Size of the captcha container                            |
+| `className`              | `string`                          | `""`                               | Custom classes for container                             |
+| `style`                  | `React.CSSProperties`             | `undefined`                        | Custom styles for container                              |
+| `darkMode`               | `boolean`                         | `false`                            | Whether to enable dark mode                              |
+| `showSuccessMessage`     | `boolean`                         | `true`                             | Whether to show the success message                      |
+| `successMessage`         | `string`                          | `"Human verification successful!"` | Custom success message                                   |
+| `successMessageDuration` | `number`                          | `1500`                             | Time in ms to show success message                       |
 
-function MyForm() {
-  return (
-    <form>
-      {/* Your form fields */}
+## Sample Application
 
-      <AudioCaptcha onSuccess={() => console.log("Verified!")} />
-
-      <button type="submit">Submit</button>
-    </form>
-  );
-}
-```
-
-### Combined with Mode Selection
-
-```jsx
-import { MimiCaptcha } from "mimicaptcha";
-
-function MyForm() {
-  return (
-    <form>
-      {/* Your form fields */}
-
-      <MimiCaptcha
-        onSuccess={() => console.log("Verified!")}
-        mode="both" // 'facial', 'audio', or 'both'
-        defaultMode="facial" // Starting mode when 'both' is selected
-      />
-
-      <button type="submit">Submit</button>
-    </form>
-  );
-}
-```
-
-## Props
-
-### MimiCaptcha
-
-| Prop        | Type                          | Default  | Description                                              |
-| ----------- | ----------------------------- | -------- | -------------------------------------------------------- |
-| onSuccess   | function                      | required | Callback function called when verification is successful |
-| mode        | 'facial' \| 'audio' \| 'both' | 'both'   | Which verification methods to offer                      |
-| defaultMode | 'facial' \| 'audio'           | 'facial' | Default selected mode when 'both' is active              |
-
-### FacialCaptcha
-
-| Prop      | Type     | Default  | Description                                              |
-| --------- | -------- | -------- | -------------------------------------------------------- |
-| onSuccess | function | required | Callback function called when verification is successful |
-
-### AudioCaptcha
-
-| Prop      | Type     | Default  | Description                                              |
-| --------- | -------- | -------- | -------------------------------------------------------- |
-| onSuccess | function | required | Callback function called when verification is successful |
-
-## Styling
-
-### CSS Imports
-
-The MimiCaptcha components come with their own built-in styling. For proper styling, you can either:
-
-1. **Use the included CSS** (recommended for most projects):
-
-   In your main CSS file or component, import the MimiCaptcha styles:
-
-   ```jsx
-   import "mimicaptcha/dist/lib/mimicaptcha/mimicaptcha.css";
-   ```
-
-2. **Use with Tailwind CSS**:
-
-   If your project uses Tailwind CSS, the components should work well with your existing Tailwind setup. Make sure your Tailwind config includes the appropriate content paths:
-
-   ```js
-   // tailwind.config.js
-   module.exports = {
-     content: [
-       // ... your existing content
-       "./node_modules/mimicaptcha/**/*.{js,jsx,ts,tsx}", // Include mimicaptcha
-     ],
-     // ... rest of your config
-   };
-   ```
-
-### Animations
-
-For proper animations and transitions, make sure you have `framer-motion` installed:
+A sample application is included to demonstrate the MimicCaptcha integration:
 
 ```bash
-npm install framer-motion@latest
+# Navigate to the sample app directory
+cd sample-app
+
+# Run the setup script to set up the models
+npm run setup
+
+# Install dependencies
+npm install
+
+# Start the development server
+npm run dev
 ```
 
-This is included as an optional peer dependency and will enhance the user experience with smooth animations during the verification process.
+The sample app showcases a registration form with customizable MimicCaptcha settings.
 
-## Local Development & Testing
+## Accessibility Features
 
-To build the package:
+MimicCaptcha is designed with accessibility in mind:
 
-```bash
-npm run build
-```
-
-To create a tarball for local testing:
-
-```bash
-npm pack  # Creates mimicaptcha-0.1.0.tgz
-```
-
-To install in another project locally:
-
-```bash
-cd /path/to/your/project
-npm install /path/to/mimicaptcha-0.1.0.tgz
-```
-
-## Face API Models
-
-The facial captcha requires face-api.js models to be available in your application's public directory.
-
-Models should be placed in:
-
-```
-/public/models/
-```
-
-The models can be obtained from the [face-api.js repo](https://github.com/justadudewhohacks/face-api.js/tree/master/weights).
-
-Required models:
-
-- tiny_face_detector_model
-- face_expression_model
-- face_landmark_68_model (or face_landmark_68_tiny_model)
-
-## Troubleshooting
-
-### Styling Issues
-
-If the component doesn't look styled properly:
-
-1. Make sure you've imported the CSS file as shown in the Styling section
-2. If using with Tailwind, ensure your configuration includes the MimiCaptcha paths
-3. Inspect your browser console for any CSS-related errors
-
-### Animation Issues
-
-If animations aren't working correctly:
-
-1. Verify that `framer-motion` is installed
-2. Check if there are any console errors related to motion components
-
-### Face Detection Issues
-
-If facial recognition isn't working:
-
-1. Ensure the models are correctly copied to your `/public/models/` directory
-2. Check browser console for any network errors loading the model files
-3. Make sure the user has granted webcam permissions
-
-## Browser Support
-
-- Chrome (latest)
-- Firefox (latest)
-- Safari (latest)
-- Edge (latest)
-
-## Requirements
-
-The facial captcha requires a webcam, and the audio captcha requires a microphone. Users will be prompted to allow access when needed.
+- **Keyboard Navigation**: Full keyboard support with proper focus management
+- **Screen Reader Support**: ARIA attributes and live regions for important announcements
+- **Multiple Verification Methods**: Users can choose between audio or visual verification
+- **Clear Instructions**: Descriptive guidance throughout the verification process
+- **Error Handling**: Accessible error states with clear feedback
+- **Color Contrast**: Compliant with WCAG color contrast requirements
+- **Customization**: Adjustable difficulty levels for different abilities
 
 ## License
 
-MIT
+MIT License © 2025 MimicCaptcha
