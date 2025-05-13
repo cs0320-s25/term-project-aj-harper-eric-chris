@@ -32,19 +32,22 @@ const App: React.FC = () => {
   const [formCaptchaVerified, setFormCaptchaVerified] = useState(false);
   const [showForm, setShowForm] = useState(true);
   const [submissionStatus, setSubmissionStatus] = useState<
-    "idle" | "success" | "error"
+    "idle" | "success" | "error" | "timeout" | "suspicious"
   >("idle");
 
   const handleCaptchaSuccess = (status: boolean | "timeout") => {
     if (status === "timeout") {
       console.log("CAPTCHA timed out!");
       setCaptchaVerified(false);
+      setSubmissionStatus("timeout");
     } else if (status === true) {
       console.log("Bot detected!");
       setCaptchaVerified(false);
+      setSubmissionStatus("suspicious");
     } else {
       console.log("CAPTCHA verified successfully!");
       setCaptchaVerified(true);
+      setSubmissionStatus("success");
     }
   };
 
@@ -53,7 +56,7 @@ const App: React.FC = () => {
     e.preventDefault();
 
     if (!formCaptchaVerified) {
-      setSubmissionStatus("error");
+      alert("Please complete the CAPTCHA verification first");
       return;
     }
 
@@ -179,6 +182,76 @@ const App: React.FC = () => {
                 </p>
                 <button
                   onClick={() => setCaptchaVerified(false)}
+                  className="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-md transition-colors"
+                >
+                  Try Again
+                </button>
+              </div>
+            ) : submissionStatus === "timeout" ? (
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-8 text-center">
+                <div className="text-yellow-500 mb-4">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-16 w-16 mx-auto"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                </div>
+                <h2 className="text-2xl font-bold mb-2">Time's Up!</h2>
+                <p className="text-gray-600 dark:text-gray-300 mb-4">
+                  The verification challenge has timed out. Please try again
+                  with a fresh attempt.
+                </p>
+                <button
+                  onClick={() => {
+                    setCaptchaVerified(false);
+                    setSubmissionStatus("idle");
+                  }}
+                  className="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-md transition-colors"
+                >
+                  Try Again
+                </button>
+              </div>
+            ) : submissionStatus === "suspicious" ? (
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-8 text-center">
+                <div className="text-blue-500 mb-4">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-16 w-16 mx-auto"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                </div>
+                <h2 className="text-2xl font-bold mb-2">
+                  Additional Verification Needed
+                </h2>
+                <p className="text-gray-600 dark:text-gray-300 mb-4">
+                  We couldn't verify your response. This might happen if your
+                  camera is lagging, your connection is unstable, or if the
+                  lighting is poor. Please try again with a stable connection
+                  and good lighting.
+                </p>
+                <button
+                  onClick={() => {
+                    setCaptchaVerified(false);
+                    setSubmissionStatus("idle");
+                  }}
                   className="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-md transition-colors"
                 >
                   Try Again

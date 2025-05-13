@@ -531,14 +531,109 @@ export default function ExpressionSequence({ onSuccess }: Props) {
       )}
 
       {stage === "success" && (
-        <div role="status" aria-live="polite" aria-label="Challenge completed">
-          <p aria-hidden="true">🎉 You completed the sequence!</p>
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-8 text-center">
+          <div className="text-green-500 mb-4">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-16 w-16 mx-auto"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold mb-2">Verification Successful!</h2>
+          <p className="text-gray-600 dark:text-gray-300 mb-4">
+            You have successfully verified that you are human.
+          </p>
+          <button
+            onClick={() => {
+              setStage("loading");
+              onSuccess(false);
+            }}
+            className="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-md transition-colors"
+          >
+            Try Again
+          </button>
         </div>
       )}
 
       {stage === "timeout" && (
-        <div role="status" aria-live="polite" aria-label="Challenge timed out">
-          <p aria-hidden="true">⏰ Time's up! Please try again.</p>
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-8 text-center">
+          <div className="text-yellow-500 mb-4">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-16 w-16 mx-auto"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold mb-2">Time's Up!</h2>
+          <p className="text-gray-600 dark:text-gray-300 mb-4">
+            The verification challenge has timed out. Please try again with a
+            fresh attempt.
+          </p>
+          <button
+            onClick={() => {
+              setStage("loading");
+              onSuccess("timeout");
+            }}
+            className="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-md transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      )}
+
+      {stage === "bot_detected" && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-8 text-center">
+          <div className="text-blue-500 mb-4">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-16 w-16 mx-auto"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold mb-2">
+            Additional Verification Needed
+          </h2>
+          <p className="text-gray-600 dark:text-gray-300 mb-4">
+            We couldn't verify your response. This might happen if your camera
+            is lagging, your connection is unstable, or if the lighting is poor.
+            Please try again with a stable connection and good lighting.
+          </p>
+          <button
+            onClick={() => {
+              setStage("loading");
+              onSuccess(true);
+            }}
+            className="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-md transition-colors"
+          >
+            Try Again
+          </button>
         </div>
       )}
     </div>
