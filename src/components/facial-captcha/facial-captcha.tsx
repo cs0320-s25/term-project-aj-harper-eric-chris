@@ -40,7 +40,6 @@ export default function ExpressionSequence({ onSuccess }: Props) {
   ); // tracks skipped expressions
   // Change to store all expression confidences for each frame
   const frameConfidencesRef = useRef<{ [key: string]: number[] }>({});
-  const [botDetected, setBotDetected] = useState(false);
   const startTimeRef = useRef<number>(Date.now());
 
   const [stage, setStage] = useState<
@@ -97,7 +96,11 @@ export default function ExpressionSequence({ onSuccess }: Props) {
 
     // Check if it's a virtual camera (some virtual cameras have specific labels)
     const label = videoTrack.label.toLowerCase();
-    if (label.includes("virtual") || label.includes("screen") || label.includes("obs")) {
+    if (
+      label.includes("virtual") ||
+      label.includes("screen") ||
+      label.includes("obs")
+    ) {
       throw new Error("Virtual camera detected");
     }
 
@@ -111,11 +114,13 @@ export default function ExpressionSequence({ onSuccess }: Props) {
       return true;
     }
 
-    const previousFrame = frameHistoryRef.current[frameHistoryRef.current.length - 1];
-    
+    const previousFrame =
+      frameHistoryRef.current[frameHistoryRef.current.length - 1];
+
     // Check frame timing
     const timeDiff = currentFrame.timestamp - previousFrame.timestamp;
-    if (timeDiff < 30 || timeDiff > 200) { // Expect frames between 30-200ms apart
+    if (timeDiff < 30 || timeDiff > 200) {
+      // Expect frames between 30-200ms apart
       suspiciousFrameCountRef.current++;
       return false;
     }
@@ -126,7 +131,7 @@ export default function ExpressionSequence({ onSuccess }: Props) {
       const previousData = previousFrame.pixelData.data;
       let diffCount = 0;
       const sampleSize = Math.min(currentData.length, previousData.length);
-      
+
       // Sample pixels to check for variations
       for (let i = 0; i < sampleSize; i += 4) {
         if (Math.abs(currentData[i] - previousData[i]) > 5) {
@@ -135,7 +140,8 @@ export default function ExpressionSequence({ onSuccess }: Props) {
       }
 
       const variationRatio = diffCount / (sampleSize / 4);
-      if (variationRatio < 0.01) { // Less than 1% variation
+      if (variationRatio < 0.01) {
+        // Less than 1% variation
         suspiciousFrameCountRef.current++;
         return false;
       }
@@ -153,7 +159,7 @@ export default function ExpressionSequence({ onSuccess }: Props) {
   // Add function to initialize canvas
   const initializeCanvas = () => {
     if (!canvasRef.current) {
-      const canvas = document.createElement('canvas');
+      const canvas = document.createElement("canvas");
       canvas.width = 640;
       canvas.height = 480;
       canvasRef.current = canvas;
@@ -163,17 +169,17 @@ export default function ExpressionSequence({ onSuccess }: Props) {
   // Modify startVideo function
   const startVideo = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
           width: { ideal: 640 },
           height: { ideal: 480 },
-          facingMode: "user"
-        } 
+          facingMode: "user",
+        },
       });
 
       // Verify webcam
       await verifyWebcam(stream);
-      
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         initializeCanvas();
@@ -185,7 +191,8 @@ export default function ExpressionSequence({ onSuccess }: Props) {
       for (let i = 0; i < 3; i++) {
         let nextExpr: keyof typeof expressionEmojis;
         do {
-          nextExpr = expressions[Math.floor(Math.random() * expressions.length)];
+          nextExpr =
+            expressions[Math.floor(Math.random() * expressions.length)];
         } while (i > 0 && nextExpr === generatedSequence[i - 1]); // avoid same as previous
 
         generatedSequence.push(nextExpr);
@@ -225,14 +232,14 @@ export default function ExpressionSequence({ onSuccess }: Props) {
 
     // Capture current frame for analysis
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
     ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
     const currentFrame: FrameData = {
       timestamp: Date.now(),
       pixelData: ctx.getImageData(0, 0, canvas.width, canvas.height),
-      faceDetected: false
+      faceDetected: false,
     };
 
     const detections = await faceapi
@@ -244,14 +251,16 @@ export default function ExpressionSequence({ onSuccess }: Props) {
     // Analyze frame variations
     if (!analyzeFrameVariations(currentFrame)) {
       if (suspiciousFrameCountRef.current > 10) {
-        setBotDetected(true);
         setStage("bot_detected");
         cleanup();
         onSuccess(true);
         return;
       }
     } else {
-      suspiciousFrameCountRef.current = Math.max(0, suspiciousFrameCountRef.current - 1);
+      suspiciousFrameCountRef.current = Math.max(
+        0,
+        suspiciousFrameCountRef.current - 1
+      );
     }
 
     // if no face or expressions detected, reset progress
@@ -277,26 +286,24 @@ export default function ExpressionSequence({ onSuccess }: Props) {
       }
     });
 
-    // TODO: MAKE SURE TIMER IS STOPPED WHENEVER VERIFIED/BOT DETECTED.
-    // TODO: CAMERA SHOULD BE STOPPED WHENEVER VERIFIED/BOT DETECTED.
-
     // Check for suspicious activity (all expressions have identical patterns across 5 frames)
     const allExpressions = Object.keys(expressionsDetected);
+    // make sure each expression has 5 confidence scores stored
     if (
       allExpressions.every(
         (expr) => frameConfidencesRef.current[expr]?.length === 5
       )
     ) {
+      // if every all expressions have last 5 scores too similar, mark as suspiscious.
       const isSuspicious = allExpressions.every((expr) => {
         const confidences = frameConfidencesRef.current[expr];
         // Check if all confidences for this expression are identical
         return confidences.every(
-          (score) => Math.abs(score - confidences[0]) < 0.000000001
+          (score) => Math.abs(score - confidences[0]) < 0.0000000001
         );
       });
 
       if (isSuspicious) {
-        setBotDetected(true);
         setStage("bot_detected");
         cleanup();
         onSuccess(true);
