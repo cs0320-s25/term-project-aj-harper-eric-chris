@@ -17,6 +17,130 @@ const expressions: (keyof typeof expressionEmojis)[] = Object.keys(
 
 const holdDuration = 500; // time the user most hold the expression (.5 second)
 
+// Inline styles for consistent appearance
+const styles = {
+  container: {
+    display: "flex",
+    flexDirection: "column" as const,
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+    maxWidth: "500px",
+    margin: "0 auto",
+  },
+  loadingContainer: {
+    padding: "40px 0",
+    textAlign: "center" as const,
+  },
+  loadingSpinner: {
+    width: "48px",
+    height: "48px",
+    borderTop: "2px solid #3b82f6",
+    borderRadius: "50%",
+    animation: "spin 1s linear infinite",
+    margin: "0 auto 16px auto",
+  },
+  loadingText: {
+    fontSize: "18px",
+  },
+  expressionContainer: {
+    display: "flex",
+    flexDirection: "column" as const,
+    alignItems: "center",
+    width: "100%",
+  },
+  expressionHeader: {
+    textAlign: "center" as const,
+    marginBottom: "16px",
+  },
+  expressionTitle: {
+    fontSize: "20px",
+    fontWeight: 500,
+    marginBottom: "8px",
+  },
+  expressionBox: {
+    background: "#1f2937",
+    color: "white",
+    padding: "12px 24px",
+    borderRadius: "8px",
+    display: "inline-block",
+  },
+  expressionContent: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "12px",
+  },
+  emoji: {
+    fontSize: "40px",
+  },
+  expressionName: {
+    fontSize: "18px",
+    textTransform: "capitalize" as const,
+  },
+  videoContainer: {
+    position: "relative" as const,
+    width: "100%",
+    maxWidth: "500px",
+    borderRadius: "8px",
+    overflow: "hidden",
+    boxShadow:
+      "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+  },
+  video: {
+    width: "100%",
+    height: "auto",
+    objectFit: "cover" as const,
+    borderRadius: "8px",
+  },
+  progressContainer: {
+    marginTop: "12px",
+    width: "100%",
+    backgroundColor: "#e5e7eb",
+    borderRadius: "9999px",
+    height: "10px",
+    overflow: "hidden",
+  },
+  progressBar: {
+    backgroundColor: "#10b981",
+    height: "10px",
+    borderRadius: "9999px",
+    transition: "width 100ms",
+  },
+  expressionInfo: {
+    display: "flex",
+    justifyContent: "space-between",
+    width: "100%",
+    marginTop: "12px",
+  },
+  expressionCount: {
+    fontWeight: 500,
+  },
+  skipButton: {
+    backgroundColor: "#6b7280",
+    color: "white",
+    border: "none",
+    padding: "6px 12px",
+    borderRadius: "6px",
+    cursor: "pointer",
+    fontSize: "14px",
+  },
+  successContainer: {
+    textAlign: "center" as const,
+    padding: "32px 16px",
+  },
+  successIcon: {
+    fontSize: "48px",
+    marginBottom: "16px",
+  },
+  successMessage: {
+    fontSize: "24px",
+    fontWeight: 600,
+    color: "#10b981",
+    marginBottom: "8px",
+  },
+};
+
 type Props = {
   onSuccess: () => void;
 };
@@ -54,6 +178,7 @@ export default function ExpressionSequence({ onSuccess }: Props) {
     await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
     await startVideo();
   };
+
   // start the webcam and generate the expression sequence
   const startVideo = async () => {
     const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
@@ -103,14 +228,10 @@ export default function ExpressionSequence({ onSuccess }: Props) {
     const sorted = Object.entries(expressionsDetected).sort(
       (a, b) => b[1] - a[1]
     );
-    // gets element with highest confidence
-    //const [expression, confidence] = sorted[0];
 
     const targetExpression = sequenceRef.current[currentIndexRef.current];
     const confidence = expressionsDetected[targetExpression];
-    console.log(confidence);
-    // if top expression matches target expression and with high enough confidence
-    //if (expression === targetExpression && confidence > 0.5) {
+
     let target = 0.5; // default target confidence
     // set target confidence based on the target expression
     // happy and neutral are easier to hold, sad is harder, surprised/fearful/angry are hardest
@@ -157,23 +278,62 @@ export default function ExpressionSequence({ onSuccess }: Props) {
     }
   };
 
+  // Skip function
+  const handleSkip = () => {
+    if (skipsLeft > 0 && stage === "expression") {
+      // Reset progress
+      holdStartTimeRef.current = null;
+      setHoldProgress(0);
+
+      // Mark this expression as skipped
+      const currentExpr = sequenceRef.current[currentIndexRef.current];
+      skippedExpressionRef.current.add(currentExpr);
+
+      // Reduce skips left
+      setSkipsLeft((prev) => prev - 1);
+
+      // Move to next expression
+      const nextIndex = currentIndexRef.current + 1;
+      if (nextIndex >= sequenceRef.current.length) {
+        // All expressions done
+        setStage("success");
+        onSuccess();
+      } else {
+        // Move to next
+        currentIndexRef.current = nextIndex;
+        setCurrentExpressionIndex(nextIndex);
+        setCurrentTargetEmoji(expressionEmojis[sequenceRef.current[nextIndex]]);
+      }
+    }
+  };
+
+  // Add keyframes for spin animation
+  const keyframesStyle = `
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  `;
+
   return (
-    <div className="flex flex-col items-center justify-center w-full max-w-md mx-auto">
+    <div style={styles.container}>
+      <style>{keyframesStyle}</style>
+
       {stage === "loading" && (
-        <div className="py-10 text-center">
-          <div className="w-12 h-12 border-t-2 border-blue-500 rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-lg">Loading facial recognition models...</p>
+        <div style={styles.loadingContainer}>
+          <div style={styles.loadingSpinner}></div>
+          <p style={styles.loadingText}>Loading facial recognition models...</p>
         </div>
       )}
 
       {stage === "expression" && (
-        <div className="flex flex-col items-center w-full">
-          <div className="text-center mb-4">
-            <p className="text-xl font-medium mb-2">Match this expression:</p>
-            <div className="bg-gray-800 text-white py-3 px-6 rounded-lg inline-block">
-              <div className="flex items-center justify-center space-x-3">
-                <span className="text-5xl">{currentTargetEmoji}</span>
-                <span className="text-xl capitalize">
+        <div style={styles.expressionContainer}>
+          <div style={styles.expressionHeader}>
+            <p style={styles.expressionTitle}>Match this expression:</p>
+            <div style={styles.expressionBox}>
+              <div style={styles.expressionContent}>
+                <span style={styles.emoji}>{currentTargetEmoji}</span>
+                <span style={styles.expressionName}>
                   {sequenceRef.current[currentIndexRef.current]}
                 </span>
               </div>
@@ -181,78 +341,43 @@ export default function ExpressionSequence({ onSuccess }: Props) {
           </div>
 
           {/* Video container */}
-          <div className="relative w-full max-w-md rounded-lg overflow-hidden shadow-lg">
-            <video
-              ref={videoRef}
-              autoPlay
-              muted
-              style={{ width: "100%", height: "auto", objectFit: "cover" }}
-              className="rounded-lg"
-            />
-
-            {/* Progress bar positioned directly below the video */}
-            <div className="mt-3 w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700 overflow-hidden">
-              <div
-                className="bg-green-600 h-2.5 rounded-full transition-all duration-100"
-                style={{ width: `${holdProgress}%` }}
-                role="progressbar"
-                aria-valuenow={holdProgress}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-label="Expression hold progress"
-              />
-            </div>
+          <div style={styles.videoContainer}>
+            <video ref={videoRef} autoPlay muted style={styles.video} />
           </div>
 
-          <div className="mt-4 text-center">
-            <p className="text-lg font-medium mb-2">
-              Expression{" "}
-              <span className="text-green-600 font-bold">
-                {currentExpressionIndex + 1}
-              </span>{" "}
-              of {sequenceRef.current.length}
-            </p>
-
-            <button
-              onClick={() => {
-                if (skipsLeft > 0) {
-                  let newExpr: keyof typeof expressionEmojis;
-                  const currentExpr =
-                    sequenceRef.current[currentIndexRef.current];
-                  skippedExpressionRef.current.add(currentExpr); // Mark the current as skipped
-
-                  do {
-                    newExpr =
-                      expressions[
-                        Math.floor(Math.random() * expressions.length)
-                      ];
-                  } while (skippedExpressionRef.current.has(newExpr)); // Avoid skipped ones
-
-                  sequenceRef.current[currentIndexRef.current] = newExpr;
-                  setCurrentTargetEmoji(expressionEmojis[newExpr]);
-                  holdStartTimeRef.current = null;
-                  setHoldProgress(0);
-                  setSkipsLeft((prev) => prev - 1);
-                }
+          {/* Progress bar */}
+          <div style={styles.progressContainer}>
+            <div
+              style={{
+                ...styles.progressBar,
+                width: `${holdProgress}%`,
               }}
-              disabled={skipsLeft <= 0}
-              className={`mt-2 px-4 py-2 rounded-md transition-colors ${
-                skipsLeft > 0
-                  ? "bg-gray-200 hover:bg-gray-300 text-gray-800"
-                  : "bg-gray-100 text-gray-400 cursor-not-allowed"
-              }`}
-            >
-              Skip ({skipsLeft} left)
-            </button>
+              role="progressbar"
+              aria-valuenow={holdProgress}
+              aria-valuemin={0}
+              aria-valuemax={100}
+            ></div>
+          </div>
+
+          {/* Expression info and skip button */}
+          <div style={styles.expressionInfo}>
+            <div style={styles.expressionCount}>
+              Expression {currentExpressionIndex + 1} of{" "}
+              {sequenceRef.current.length}
+            </div>
+            {skipsLeft > 0 && (
+              <button onClick={handleSkip} style={styles.skipButton}>
+                Skip ({skipsLeft} left)
+              </button>
+            )}
           </div>
         </div>
       )}
 
       {stage === "success" && (
-        <div className="text-center py-10">
-          <div className="text-5xl mb-4">🎉</div>
-          <h2 className="text-2xl font-bold text-green-600 mb-2">Success!</h2>
-          <p className="text-lg">You completed the expression sequence!</p>
+        <div style={styles.successContainer}>
+          <div style={styles.successIcon}>✅</div>
+          <p style={styles.successMessage}>Verification Complete!</p>
         </div>
       )}
     </div>
