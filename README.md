@@ -1,258 +1,108 @@
-# MimiCaptcha
+# MimicCaptcha
 
-A multi-modal CAPTCHA system based on human mimicry. This package provides facial and audio verification challenges to help protect your web applications from bots.
+A modern, accessible CAPTCHA alternative based on human mimicry capabilities.
+
+[![npm version](https://img.shields.io/npm/v/mimicaptcha.svg)](https://www.npmjs.com/package/mimicaptcha)
+[![license](https://img.shields.io/npm/l/mimicaptcha.svg)](https://github.com/user/mimicaptcha/blob/main/LICENSE)
+
+MimicCaptcha provides a more engaging, interactive, and accessible alternative to traditional CAPTCHA systems. Instead of deciphering distorted text or selecting images, users prove they're human by mimicking audio tones or facial expressions.
 
 ## Features
 
-- **Facial Captcha**: Requires users to mimic a sequence of facial expressions
-- **Audio Captcha**: Requires users to match a specific sound frequency with their voice
-- **Multi-modal**: Choose between facial, audio, or both verification methods
-- **Easy Integration**: Simple React components that can be integrated into any form
+- 🔊 **Audio Tone Matching**: Users mimic a tone with their voice
+- 😀 **Facial Expression Matching**: Users match a series of facial expressions
+- ♿ **Accessibility First**: Built with a focus on accessibility standards
+- 🎨 **Customizable**: Easy to integrate and style with your application
+- 🔥 **Framework Agnostic**: Works with any React-based application
 
 ## Installation
 
 ```bash
 npm install mimicaptcha
+# or
+yarn add mimicaptcha
 ```
-
-After installation, you need to:
-
-1. **Copy the facial recognition models**:
-
-   ```bash
-   mkdir -p public/models
-   cp node_modules/mimicaptcha/dist/models/* public/models/
-   ```
-
-2. **Install styling dependencies** (if not already installed):
-
-   ```bash
-   # If you're using animations
-   npm install framer-motion@latest
-
-   # If you're using headless UI components
-   npm install @headlessui/react@latest
-   ```
 
 ## Usage
 
-### Basic Usage
+MimicCaptcha can be used as a standalone component or integrated into forms:
 
 ```jsx
-import { MimiCaptcha } from "mimicaptcha";
+import React, { useState } from "react";
+import { MimicCaptcha } from "mimicaptcha";
 
 function MyForm() {
-  const handleCaptchaSuccess = () => {
-    console.log("Captcha verification successful!");
-    // Proceed with form submission
+  const [verified, setVerified] = useState(false);
+
+  const handleSuccess = () => {
+    setVerified(true);
+    // Now you can allow form submission
   };
 
   return (
-    <form>
+    <form onSubmit={handleSubmit}>
       {/* Your form fields */}
 
-      <MimiCaptcha onSuccess={handleCaptchaSuccess} />
-
-      <button type="submit">Submit</button>
-    </form>
-  );
-}
-```
-
-### Facial Verification Only
-
-```jsx
-import { FacialCaptcha } from "mimicaptcha";
-
-function MyForm() {
-  return (
-    <form>
-      {/* Your form fields */}
-
-      <FacialCaptcha onSuccess={() => console.log("Verified!")} />
-
-      <button type="submit">Submit</button>
-    </form>
-  );
-}
-```
-
-### Audio Verification Only
-
-```jsx
-import { AudioCaptcha } from "mimicaptcha";
-
-function MyForm() {
-  return (
-    <form>
-      {/* Your form fields */}
-
-      <AudioCaptcha onSuccess={() => console.log("Verified!")} />
-
-      <button type="submit">Submit</button>
-    </form>
-  );
-}
-```
-
-### Combined with Mode Selection
-
-```jsx
-import { MimiCaptcha } from "mimicaptcha";
-
-function MyForm() {
-  return (
-    <form>
-      {/* Your form fields */}
-
-      <MimiCaptcha
-        onSuccess={() => console.log("Verified!")}
-        mode="both" // 'facial', 'audio', or 'both'
-        defaultMode="facial" // Starting mode when 'both' is selected
+      <MimicCaptcha
+        onSuccess={handleSuccess}
+        defaultType="audio" // or "facial"
+        showTypeSwitcher={true}
       />
 
-      <button type="submit">Submit</button>
+      <button type="submit" disabled={!verified}>
+        Submit
+      </button>
     </form>
   );
 }
 ```
 
-## Props
+## Component Options
 
-### MimiCaptcha
+### MimicCaptcha Component
 
-| Prop        | Type                          | Default  | Description                                              |
-| ----------- | ----------------------------- | -------- | -------------------------------------------------------- |
-| onSuccess   | function                      | required | Callback function called when verification is successful |
-| mode        | 'facial' \| 'audio' \| 'both' | 'both'   | Which verification methods to offer                      |
-| defaultMode | 'facial' \| 'audio'           | 'facial' | Default selected mode when 'both' is active              |
+| Prop               | Type                  | Default    | Description                                                    |
+| ------------------ | --------------------- | ---------- | -------------------------------------------------------------- |
+| `onSuccess`        | `() => void`          | (required) | Function called when user successfully completes the challenge |
+| `defaultType`      | `"audio" \| "facial"` | `"audio"`  | Initial captcha type to display                                |
+| `showTypeSwitcher` | `boolean`             | `true`     | Whether to show tabs to switch between audio/facial            |
+| `className`        | `string`              | `""`       | Additional CSS classes for the container                       |
+| `style`            | `CSSProperties`       | `{}`       | Inline styles for the container                                |
 
-### FacialCaptcha
+### Individual Components
 
-| Prop      | Type     | Default  | Description                                              |
-| --------- | -------- | -------- | -------------------------------------------------------- |
-| onSuccess | function | required | Callback function called when verification is successful |
+You can also use the individual CAPTCHA components if you prefer:
 
-### AudioCaptcha
+```jsx
+import { AudioCaptcha, ExpressionSequence } from 'mimicaptcha';
 
-| Prop      | Type     | Default  | Description                                              |
-| --------- | -------- | -------- | -------------------------------------------------------- |
-| onSuccess | function | required | Callback function called when verification is successful |
+// For audio only
+<AudioCaptcha onSuccess={handleSuccess} />
 
-## Styling
-
-### CSS Imports
-
-The MimiCaptcha components come with their own built-in styling. For proper styling, you can either:
-
-1. **Use the included CSS** (recommended for most projects):
-
-   In your main CSS file or component, import the MimiCaptcha styles:
-
-   ```jsx
-   import "mimicaptcha/dist/lib/mimicaptcha/mimicaptcha.css";
-   ```
-
-2. **Use with Tailwind CSS**:
-
-   If your project uses Tailwind CSS, the components should work well with your existing Tailwind setup. Make sure your Tailwind config includes the appropriate content paths:
-
-   ```js
-   // tailwind.config.js
-   module.exports = {
-     content: [
-       // ... your existing content
-       "./node_modules/mimicaptcha/**/*.{js,jsx,ts,tsx}", // Include mimicaptcha
-     ],
-     // ... rest of your config
-   };
-   ```
-
-### Animations
-
-For proper animations and transitions, make sure you have `framer-motion` installed:
-
-```bash
-npm install framer-motion@latest
+// For facial expressions only
+<ExpressionSequence onSuccess={handleSuccess} />
 ```
 
-This is included as an optional peer dependency and will enhance the user experience with smooth animations during the verification process.
+## Accessibility Features
 
-## Local Development & Testing
+MimicCaptcha has been designed with accessibility in mind:
 
-To build the package:
-
-```bash
-npm run build
-```
-
-To create a tarball for local testing:
-
-```bash
-npm pack  # Creates mimicaptcha-0.1.0.tgz
-```
-
-To install in another project locally:
-
-```bash
-cd /path/to/your/project
-npm install /path/to/mimicaptcha-0.1.0.tgz
-```
-
-## Face API Models
-
-The facial captcha requires face-api.js models to be available in your application's public directory.
-
-Models should be placed in:
-
-```
-/public/models/
-```
-
-The models can be obtained from the [face-api.js repo](https://github.com/justadudewhohacks/face-api.js/tree/master/weights).
-
-Required models:
-
-- tiny_face_detector_model
-- face_expression_model
-- face_landmark_68_model (or face_landmark_68_tiny_model)
-
-## Troubleshooting
-
-### Styling Issues
-
-If the component doesn't look styled properly:
-
-1. Make sure you've imported the CSS file as shown in the Styling section
-2. If using with Tailwind, ensure your configuration includes the MimiCaptcha paths
-3. Inspect your browser console for any CSS-related errors
-
-### Animation Issues
-
-If animations aren't working correctly:
-
-1. Verify that `framer-motion` is installed
-2. Check if there are any console errors related to motion components
-
-### Face Detection Issues
-
-If facial recognition isn't working:
-
-1. Ensure the models are correctly copied to your `/public/models/` directory
-2. Check browser console for any network errors loading the model files
-3. Make sure the user has granted webcam permissions
+- **Audio Captcha**: Screen reader announcements for all states, keyboard navigation support
+- **Facial Captcha**: Clear visual indicators, appropriate alt-text, camera permission handling
+- **ARIA attributes**: Proper labeling, live regions, and role attributes
+- **Keyboard Navigation**: Full support for keyboard navigation
+- **Error States**: Clear and descriptive error messages with visual cues
+- **Device Permissions**: Clear explanations when camera or microphone permissions are needed
 
 ## Browser Support
+
+MimicCaptcha works in all modern browsers that support the Web Audio API and getUserMedia API:
 
 - Chrome (latest)
 - Firefox (latest)
 - Safari (latest)
 - Edge (latest)
 
-## Requirements
-
-The facial captcha requires a webcam, and the audio captcha requires a microphone. Users will be prompted to allow access when needed.
-
 ## License
 
-MIT
+MIT © [Your Organization]
