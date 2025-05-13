@@ -13,7 +13,22 @@ A modern, accessible CAPTCHA alternative for React applications that uses mimicr
 - **Highly Customizable**: Configure difficulty, attempts, size, and more
 - **Standalone**: No external API dependencies, works locally
 - **Developer-Friendly**: Simple API with TypeScript support
-- **Zero Next.js Dependencies**: Works with any React framework
+- **Works with any React application**: No framework-specific dependencies
+
+## Demo Application
+
+The repository includes a demo application that showcases the MimicCaptcha components in action:
+
+### Features in Demo
+
+- **Form Demo**: A complete contact form with CAPTCHA verification
+- **Combined Setup**: Showcases the components working together with tab switching
+- **Individual Components**: Demonstrates how to use each component separately
+
+### Captcha Options
+
+- **Audio Mimicry**: Users mimic a played tone to verify they're human
+- **Facial Mimicry**: Users match facial expressions to verify they're human
 
 ## Installation
 
@@ -63,37 +78,59 @@ function MyForm() {
 }
 ```
 
-### Advanced Configuration
+### Using Individual Components
+
+You can also use the individual components directly:
 
 ```jsx
-import React from "react";
-import { MimicCaptcha } from "mimicaptcha";
+import React, { useState } from "react";
+import { AudioCaptcha, ExpressionSequence } from "mimicaptcha";
 
-function AdvancedForm() {
-  const handleSuccess = () => {
+function CustomForm() {
+  const [isVerified, setIsVerified] = useState(false);
+
+  const handleCaptchaSuccess = () => {
+    setIsVerified(true);
     console.log("Verification successful!");
   };
 
-  const handleFailure = () => {
-    console.log("Maximum attempts reached");
-  };
-
   return (
-    <MimicCaptcha
-      onSuccess={handleSuccess}
-      onFailure={handleFailure}
-      defaultType="facial"
-      showTypeSwitcher={true}
-      maxAttempts={5}
-      difficulty="hard"
-      size="large"
-      darkMode={true}
-      showSuccessMessage={true}
-      successMessage="Great job, human!"
-      successMessageDuration={2000}
-    />
+    <form>
+      {/* Form fields */}
+
+      {/* Audio captcha */}
+      <AudioCaptcha onSuccess={handleCaptchaSuccess} />
+
+      {/* OR Facial expression captcha */}
+      <ExpressionSequence onSuccess={handleCaptchaSuccess} />
+
+      <button type="submit" disabled={!isVerified}>
+        Submit
+      </button>
+    </form>
   );
 }
+```
+
+### Form Demo Integration
+
+The Form Demo in our application shows how to integrate both captcha types within a form:
+
+1. Present the user with captcha type options
+2. Allow them to complete the verification
+3. Enable form submission only after verification
+4. Process the form data after submission
+
+## Running the Demo
+
+To run the demo application:
+
+```bash
+# Install dependencies
+npm install
+
+# Start the development server
+npm run dev
 ```
 
 ## Configuration Options
@@ -114,26 +151,6 @@ function AdvancedForm() {
 | `successMessage`         | `string`                          | `"Human verification successful!"` | Custom success message                                   |
 | `successMessageDuration` | `number`                          | `1500`                             | Time in ms to show success message                       |
 
-## Sample Application
-
-A sample application is included to demonstrate the MimicCaptcha integration:
-
-```bash
-# Navigate to the sample app directory
-cd sample-app
-
-# Run the setup script to set up the models
-npm run setup
-
-# Install dependencies
-npm install
-
-# Start the development server
-npm run dev
-```
-
-The sample app showcases a registration form with customizable MimicCaptcha settings.
-
 ## Accessibility Features
 
 MimicCaptcha is designed with accessibility in mind:
@@ -145,6 +162,12 @@ MimicCaptcha is designed with accessibility in mind:
 - **Error Handling**: Accessible error states with clear feedback
 - **Color Contrast**: Compliant with WCAG color contrast requirements
 - **Customization**: Adjustable difficulty levels for different abilities
+
+## Recent Fixes
+
+- Fixed facial mimicry camera initialization and display
+- Improved video element loading reliability
+- Added fallback mechanisms for camera access
 
 ## License
 

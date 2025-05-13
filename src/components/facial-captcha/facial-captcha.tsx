@@ -62,7 +62,10 @@ export function ExpressionSequence({ onSuccess }: Props) {
   // load face detection and expression recognition models.
   const loadModels = async () => {
     try {
-      const MODEL_URL = "/models";
+      // Ensure models path is correct
+      const MODEL_URL =
+        process.env.NODE_ENV === "production" ? "/models" : "/models";
+      console.log("Loading models from:", MODEL_URL);
       await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
       await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
       await startVideo();
@@ -75,33 +78,56 @@ export function ExpressionSequence({ onSuccess }: Props) {
   // start the webcam and generate the expression sequence
   const startVideo = async () => {
     try {
+      console.log("Attempting to access camera...");
       const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
+      console.log("Camera access granted");
       streamRef.current = stream; // Store for cleanup
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-
-      // Generate a random sequence of 3 expressions, ensuring no repeats in a row
-      const generatedSequence: (keyof typeof expressionEmojis)[] = [];
-
-      for (let i = 0; i < 3; i++) {
-        let nextExpr: keyof typeof expressionEmojis;
-        do {
-          nextExpr =
-            expressions[Math.floor(Math.random() * expressions.length)];
-        } while (i > 0 && nextExpr === generatedSequence[i - 1]); // avoid same as previous
-
-        generatedSequence.push(nextExpr);
-      }
-
-      sequenceRef.current = generatedSequence;
-
-      setCurrentTargetEmoji(expressionEmojis[generatedSequence[0]]);
+      // Set state to expression first so the video element renders
       setStage("expression");
 
-      // Set up interval to process video frames every 100ms
-      intervalRef.current = window.setInterval(processFrame, 100);
+      // Wait for video element to be available
+      const attachVideoStream = () => {
+        if (videoRef.current) {
+          console.log("Setting video source");
+          videoRef.current.srcObject = stream;
+          // Ensure the video element starts playing
+          videoRef.current.play().catch((err) => {
+            console.error("Error playing video:", err);
+          });
+
+          // Generate expression sequence and set up processing
+          setupExpressionSequence();
+        } else {
+          console.log("Video reference is null, retrying in 100ms...");
+          setTimeout(attachVideoStream, 100);
+        }
+      };
+
+      // Set up the expression sequence
+      const setupExpressionSequence = () => {
+        // Generate a random sequence of 3 expressions, ensuring no repeats in a row
+        const generatedSequence: (keyof typeof expressionEmojis)[] = [];
+
+        for (let i = 0; i < 3; i++) {
+          let nextExpr: keyof typeof expressionEmojis;
+          do {
+            nextExpr =
+              expressions[Math.floor(Math.random() * expressions.length)];
+          } while (i > 0 && nextExpr === generatedSequence[i - 1]); // avoid same as previous
+
+          generatedSequence.push(nextExpr);
+        }
+
+        sequenceRef.current = generatedSequence;
+        setCurrentTargetEmoji(expressionEmojis[generatedSequence[0]]);
+
+        // Set up interval to process video frames every 100ms
+        intervalRef.current = window.setInterval(processFrame, 100);
+      };
+
+      // Start the attachment process
+      attachVideoStream();
     } catch (error) {
       console.error("Error accessing camera:", error);
       setStage("permission-error");
@@ -202,10 +228,26 @@ export function ExpressionSequence({ onSuccess }: Props) {
     setTimeout(loadModels, 500);
   };
 
+  // Effect to ensure video is initialized when in expression stage
+  useEffect(() => {
+    if (
+      stage === "expression" &&
+      videoRef.current &&
+      streamRef.current &&
+      videoRef.current.srcObject !== streamRef.current
+    ) {
+      console.log("Initializing video from effect hook");
+      videoRef.current.srcObject = streamRef.current;
+      videoRef.current.play().catch((err) => {
+        console.error("Error playing video from effect:", err);
+      });
+    }
+  }, [stage]);
+
   return (
     <div className="flex flex-col items-center justify-center w-full max-w-md mx-auto">
       {stage === "initial" && (
-        <div>
+        <div className="text-center w-full">
           <h3 className="text-lg font-medium mb-2 text-center">
             Facial Expression Verification
           </h3>
@@ -214,7 +256,7 @@ export function ExpressionSequence({ onSuccess }: Props) {
           </p>
           <button
             onClick={handleStart}
-            className="w-full bg-primary-500 hover:bg-primary-600 text-white py-2 px-4 rounded-md transition-colors"
+            className="bg-primary-500 hover:bg-primary-600 text-white py-2 px-6 rounded-md transition-colors min-w-[160px]"
             aria-label="Start facial expression challenge"
           >
             Start
@@ -299,12 +341,20 @@ export function ExpressionSequence({ onSuccess }: Props) {
           </div>
 
           {/* Video container */}
-          <div className="relative w-full max-w-md rounded-lg overflow-hidden shadow-lg">
+          <div className="relative w-full max-w-md rounded-lg overflow-hidden shadow-lg bg-gray-100">
             <video
               ref={videoRef}
               autoPlay
+              playsInline
               muted
-              style={{ width: "100%", height: "auto", objectFit: "cover" }}
+              onLoadedMetadata={() => console.log("Video metadata loaded")}
+              onCanPlay={() => console.log("Video can now play")}
+              style={{
+                width: "100%",
+                height: "300px",
+                objectFit: "cover",
+                backgroundColor: "#f0f0f0",
+              }}
               className="rounded-lg"
               aria-label="Your camera view for facial expression detection"
             />

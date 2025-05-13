@@ -60,6 +60,9 @@ export function AudioCaptcha({ onSuccess }: AudioCaptchaProps) {
   const isRecordingRef = useRef(false);
   const successTriggeredRef = useRef(false); // Track if success has been triggered to prevent auto-pass to next round
 
+  // Add a new state for initial stage
+  const [showChallenge, setShowChallenge] = useState(false);
+
   // Initialize on mount
   useEffect(() => {
     initChallenge();
@@ -565,7 +568,7 @@ export function AudioCaptcha({ onSuccess }: AudioCaptchaProps) {
 
   // Start button handler - no longer initializes microphone
   const handleStart = async () => {
-    // Just play the demo sequence without initializing mic
+    setShowChallenge(true);
     playDemoSequence();
   };
 
@@ -580,264 +583,268 @@ export function AudioCaptcha({ onSuccess }: AudioCaptchaProps) {
   }, [isRecording]);
 
   return (
-    <div className="w-full">
-      <div className="mb-4 overflow-hidden rounded-lg aspect-[2/1] bg-gray-900 relative">
-        {/* Use the PitchVisualizer component */}
-        <div className="w-full h-full">
-          <PitchVisualizer
-            userFrequency={detectionResult.frequency}
-            targetFrequency={targetFrequency || 0}
-            isRecording={isRecording}
-            stage={stage}
-          />
+    <div className="flex flex-col items-center justify-center w-full max-w-md mx-auto">
+      {!showChallenge ? (
+        <div className="text-center w-full">
+          <h3 className="text-lg font-medium mb-2 text-center">
+            Audio Tone Mimicry
+          </h3>
+          <p className="text-sm text-gray-600 dark:text-gray-300 mb-4 text-center">
+            Listen to a tone and then mimic it with your voice.
+          </p>
+          <button
+            onClick={handleStart}
+            className="bg-primary-500 hover:bg-primary-600 text-white py-2 px-6 rounded-md transition-colors min-w-[160px]"
+            aria-label="Start audio challenge"
+          >
+            Start
+          </button>
         </div>
-
-        {/* Recording indicator with countdown */}
-        {isRecording && (
-          <div
-            className="absolute top-2 right-2 bg-red-500 text-white px-3 py-1 rounded-full text-xs flex items-center"
-            aria-live="polite"
-          >
-            <span className="animate-pulse mr-1" aria-hidden="true">
-              ●
-            </span>
-            <span>
-              Recording {recordingTimeLeft > 0 ? `(${recordingTimeLeft}s)` : ""}
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* Instructions and controls */}
-      <div className="space-y-4">
-        {stage === "initial" && (
-          <div>
-            <h3 className="text-lg font-medium mb-2 text-center">
-              Audio Tone Mimicry
-            </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-300 mb-4 text-center">
-              Listen to a tone and then mimic it with your voice.
-            </p>
-            <button
-              onClick={handleStart}
-              className="w-full bg-primary-500 hover:bg-primary-600 text-white py-2 px-4 rounded-md transition-colors"
-              aria-label="Start audio challenge"
-            >
-              Start
-            </button>
-          </div>
-        )}
-
-        {stage === "demo" && (
-          <div
-            className="bg-blue-50 dark:bg-blue-900 p-4 rounded-md"
-            aria-live="polite"
-          >
-            <p className="text-sm text-blue-700 dark:text-blue-300">
-              <span className="font-semibold">Listen carefully:</span> You will
-              need to mimic this tone with your voice.
-            </p>
-          </div>
-        )}
-
-        {stage === "recording" && (
-          <div>
-            <div
-              className="bg-green-50 dark:bg-green-900 p-4 rounded-md mb-4"
-              aria-live="polite"
-            >
-              <p className="text-sm text-green-700 dark:text-green-300">
-                <span className="font-semibold">Your turn:</span> Mimic the tone
-                you just heard. Maintain the correct pitch for 2 seconds to
-                complete the challenge.
-              </p>
+      ) : (
+        <>
+          <div className="mb-4 overflow-hidden rounded-lg aspect-[2/1] bg-gray-900 relative w-full">
+            {/* Use the PitchVisualizer component */}
+            <div className="w-full h-full">
+              <PitchVisualizer
+                userFrequency={detectionResult.frequency}
+                targetFrequency={targetFrequency || 0}
+                isRecording={isRecording}
+                stage={stage}
+              />
             </div>
-            <button
-              onClick={handleRecord}
-              className={`w-full ${
-                isRecording
-                  ? "bg-red-500 hover:bg-red-600"
-                  : microphoneReady
-                  ? "bg-blue-500 hover:bg-blue-600"
-                  : "bg-primary-500 hover:bg-primary-600"
-              } text-white py-2 px-4 rounded-md transition-colors`}
-              disabled={isRecording}
-              aria-label={
-                isRecording
-                  ? `Recording in progress (${recordingTimeLeft}s left)`
-                  : microphoneReady
-                  ? "Record your voice again"
-                  : "Start recording your voice"
-              }
-            >
-              {isRecording
-                ? `Recording (${recordingTimeLeft}s)`
-                : microphoneReady
-                ? "Record Again"
-                : "Start Recording"}
-            </button>
-          </div>
-        )}
 
-        {stage === "analyzing" && (
-          <div className="text-center py-4" aria-live="polite">
-            <div
-              className="w-12 h-12 border-t-2 border-blue-500 rounded-full animate-spin mx-auto mb-4"
-              role="status"
-              aria-label="Analyzing your tone"
-            ></div>
-            <p className="text-gray-600 dark:text-gray-300">
-              Analyzing your tone...
-            </p>
-          </div>
-        )}
-
-        {stage === "success" && (
-          <div
-            className="bg-green-50 dark:bg-green-900 p-4 rounded-md text-center"
-            aria-live="polite"
-          >
-            <div className="text-green-500 mb-2">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-12 w-12 mx-auto"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                aria-hidden="true"
+            {/* Recording indicator with countdown */}
+            {isRecording && (
+              <div
+                className="absolute top-2 right-2 bg-red-500 text-white px-3 py-1 rounded-full text-xs flex items-center"
+                aria-live="polite"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-            </div>
-            <h3 className="text-lg font-medium mb-2 text-green-700 dark:text-green-300">
-              Verification Successful!
-            </h3>
-            <p className="text-sm text-green-600 dark:text-green-400">
-              You have successfully completed the audio tone challenge.
-            </p>
+                <span className="animate-pulse mr-1" aria-hidden="true">
+                  ●
+                </span>
+                <span>
+                  Recording{" "}
+                  {recordingTimeLeft > 0 ? `(${recordingTimeLeft}s)` : ""}
+                </span>
+              </div>
+            )}
           </div>
-        )}
 
-        {stage === "failure" && (
-          <div
-            className="bg-red-50 dark:bg-red-900 p-4 rounded-md text-center"
-            aria-live="assertive"
-          >
-            <div className="text-red-500 mb-2">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-12 w-12 mx-auto"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                aria-hidden="true"
+          {/* Instructions and controls */}
+          <div className="space-y-4">
+            {stage === "demo" && (
+              <div
+                className="bg-blue-50 dark:bg-blue-900 p-4 rounded-md"
+                aria-live="polite"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                />
-              </svg>
-            </div>
-            <h3 className="text-lg font-medium mb-2 text-red-700 dark:text-red-300">
-              Verification Failed
-            </h3>
-            <p className="text-sm text-red-600 dark:text-red-400 mb-4">
-              {failureMessage ||
-                (microphoneAccess
-                  ? "We couldn't match your tone with the expected frequency."
-                  : "We couldn't access your microphone.")}
-            </p>
-            <button
-              onClick={handleRetry}
-              className="bg-red-600 hover:bg-red-700 text-white py-2 px-6 rounded-md transition-colors"
-              aria-label="Try the audio challenge again"
-            >
-              Try Again
-            </button>
-          </div>
-        )}
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  <span className="font-semibold">Listen carefully:</span> You
+                  will need to mimic this tone with your voice.
+                </p>
+              </div>
+            )}
 
-        {stage === "permission-error" && (
-          <div
-            className="bg-red-50 dark:bg-red-900 p-4 rounded-md text-center"
-            aria-live="assertive"
-          >
-            <div className="text-red-500 mb-2">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-12 w-12 mx-auto"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                aria-hidden="true"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                />
-              </svg>
-            </div>
-            <h3 className="text-lg font-medium mb-2 text-red-700 dark:text-red-300">
-              Microphone Access Required
-            </h3>
-            <p className="text-sm text-red-600 dark:text-red-400 mb-4">
-              Please allow microphone access to use the audio tone verification.
-              Your microphone is used only for verification and no audio is
-              stored.
-            </p>
-            <button
-              onClick={handleRetry}
-              className="bg-red-600 hover:bg-red-700 text-white py-2 px-6 rounded-md transition-colors"
-              aria-label="Try again with microphone access"
-            >
-              Try Again
-            </button>
-          </div>
-        )}
+            {stage === "recording" && (
+              <div>
+                <div
+                  className="bg-green-50 dark:bg-green-900 p-4 rounded-md mb-4"
+                  aria-live="polite"
+                >
+                  <p className="text-sm text-green-700 dark:text-green-300">
+                    <span className="font-semibold">Your turn:</span> Mimic the
+                    tone you just heard. Maintain the correct pitch for 2
+                    seconds to complete the challenge.
+                  </p>
+                </div>
+                <button
+                  onClick={handleRecord}
+                  className={`w-full ${
+                    isRecording
+                      ? "bg-red-500 hover:bg-red-600"
+                      : microphoneReady
+                      ? "bg-blue-500 hover:bg-blue-600"
+                      : "bg-primary-500 hover:bg-primary-600"
+                  } text-white py-2 px-4 rounded-md transition-colors`}
+                  disabled={isRecording}
+                  aria-label={
+                    isRecording
+                      ? `Recording in progress (${recordingTimeLeft}s left)`
+                      : microphoneReady
+                      ? "Record your voice again"
+                      : "Start recording your voice"
+                  }
+                >
+                  {isRecording
+                    ? `Recording (${recordingTimeLeft}s)`
+                    : microphoneReady
+                    ? "Record Again"
+                    : "Start Recording"}
+                </button>
+              </div>
+            )}
 
-        {stage === "bot-detected" && (
-          <div
-            className="bg-red-50 dark:bg-red-900 p-4 rounded-md text-center"
-            aria-live="assertive"
-          >
-            <div className="text-red-500 mb-2">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-12 w-12 mx-auto"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                aria-hidden="true"
+            {stage === "analyzing" && (
+              <div className="text-center py-4" aria-live="polite">
+                <div
+                  className="w-12 h-12 border-t-2 border-blue-500 rounded-full animate-spin mx-auto mb-4"
+                  role="status"
+                  aria-label="Analyzing your tone"
+                ></div>
+                <p className="text-gray-600 dark:text-gray-300">
+                  Analyzing your tone...
+                </p>
+              </div>
+            )}
+
+            {stage === "success" && (
+              <div
+                className="bg-green-50 dark:bg-green-900 p-4 rounded-md text-center"
+                aria-live="polite"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"
-                />
-              </svg>
-            </div>
-            <h3 className="text-lg font-medium mb-2 text-red-700 dark:text-red-300">
-              Verification Failed
-            </h3>
-            <p className="text-sm text-red-600 dark:text-red-400 mb-4">
-              Synthetic/computer-generated audio detected.
-            </p>
-            <p className="text-xs text-red-600 dark:text-red-400 mb-2">
-              Human verification required. Please reload the page to try again.
-            </p>
+                <div className="text-green-500 mb-2">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-12 w-12 mx-auto"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-medium mb-2 text-green-700 dark:text-green-300">
+                  Verification Successful!
+                </h3>
+                <p className="text-sm text-green-600 dark:text-green-400">
+                  You have successfully completed the audio tone challenge.
+                </p>
+              </div>
+            )}
+
+            {stage === "failure" && (
+              <div
+                className="bg-red-50 dark:bg-red-900 p-4 rounded-md text-center"
+                aria-live="assertive"
+              >
+                <div className="text-red-500 mb-2">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-12 w-12 mx-auto"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                    />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-medium mb-2 text-red-700 dark:text-red-300">
+                  Verification Failed
+                </h3>
+                <p className="text-sm text-red-600 dark:text-red-400 mb-4">
+                  {failureMessage ||
+                    (microphoneAccess
+                      ? "We couldn't match your tone with the expected frequency."
+                      : "We couldn't access your microphone.")}
+                </p>
+                <button
+                  onClick={handleRetry}
+                  className="bg-red-600 hover:bg-red-700 text-white py-2 px-6 rounded-md transition-colors"
+                  aria-label="Try the audio challenge again"
+                >
+                  Try Again
+                </button>
+              </div>
+            )}
+
+            {stage === "permission-error" && (
+              <div
+                className="bg-red-50 dark:bg-red-900 p-4 rounded-md text-center"
+                aria-live="assertive"
+              >
+                <div className="text-red-500 mb-2">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-12 w-12 mx-auto"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                    />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-medium mb-2 text-red-700 dark:text-red-300">
+                  Microphone Access Required
+                </h3>
+                <p className="text-sm text-red-600 dark:text-red-400 mb-4">
+                  Please allow microphone access to use the audio tone
+                  verification. Your microphone is used only for verification
+                  and no audio is stored.
+                </p>
+                <button
+                  onClick={handleRetry}
+                  className="bg-red-600 hover:bg-red-700 text-white py-2 px-6 rounded-md transition-colors"
+                  aria-label="Try again with microphone access"
+                >
+                  Try Again
+                </button>
+              </div>
+            )}
+
+            {stage === "bot-detected" && (
+              <div
+                className="bg-red-50 dark:bg-red-900 p-4 rounded-md text-center"
+                aria-live="assertive"
+              >
+                <div className="text-red-500 mb-2">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-12 w-12 mx-auto"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"
+                    />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-medium mb-2 text-red-700 dark:text-red-300">
+                  Verification Failed
+                </h3>
+                <p className="text-sm text-red-600 dark:text-red-400 mb-4">
+                  Synthetic/computer-generated audio detected.
+                </p>
+                <p className="text-xs text-red-600 dark:text-red-400 mb-2">
+                  Human verification required. Please reload the page to try
+                  again.
+                </p>
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </>
+      )}
     </div>
   );
 }
