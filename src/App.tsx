@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ExpressionSequence } from "./components/facial-captcha/facial-captcha";
+import ExpressionSequence from "./components/facial-captcha/facial-captcha";
 import { AudioCaptcha } from "./components/audio-captcha/audio-captcha";
 import { ErrorBoundary } from "react-error-boundary";
 
@@ -35,12 +35,17 @@ const App: React.FC = () => {
     "idle" | "success" | "error"
   >("idle");
 
-  const handleCaptchaSuccess = () => { 
-
-    alert("CAPTCHA verified successfully!");
-    setCaptchaVerified(true);
-    setCaptchaVerified(false)
-
+  const handleCaptchaSuccess = (status: boolean | "timeout") => {
+    if (status === "timeout") {
+      console.log("CAPTCHA timed out!");
+      setCaptchaVerified(false);
+    } else if (status === true) {
+      console.log("Bot detected!");
+      setCaptchaVerified(false);
+    } else {
+      console.log("CAPTCHA verified successfully!");
+      setCaptchaVerified(true);
+    }
   };
 
   // Form demo handlers
@@ -48,7 +53,7 @@ const App: React.FC = () => {
     e.preventDefault();
 
     if (!formCaptchaVerified) {
-      alert("Please complete the CAPTCHA verification first");
+      setSubmissionStatus("error");
       return;
     }
 
@@ -268,7 +273,7 @@ const App: React.FC = () => {
                   </code>
                 </div>
                 <div className="mt-4">
-                  <AudioCaptcha onSuccess={() => alert("Audio success!")} />
+                  <AudioCaptcha onSuccess={() => setCaptchaVerified(true)} />
                 </div>
               </div>
 
@@ -281,9 +286,7 @@ const App: React.FC = () => {
                 </div>
                 <div className="mt-4">
                   <ErrorBoundary FallbackComponent={ErrorFallback}>
-                    <ExpressionSequence
-                      onSuccess={handleCaptchaSuccess}
-                    />
+                    <ExpressionSequence onSuccess={handleCaptchaSuccess} />
                   </ErrorBoundary>
                 </div>
               </div>

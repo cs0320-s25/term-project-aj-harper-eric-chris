@@ -3,7 +3,7 @@ import PitchVisualizer from "./PitchVisualizer";
 import { defaultToneDetector, DetectionResult } from "../../lib/toneDetector";
 
 interface AudioCaptchaProps {
-  onSuccess: () => void;
+  onSuccess: (status: boolean | "timeout") => void;
 }
 
 export function AudioCaptcha({ onSuccess }: AudioCaptchaProps) {
@@ -384,6 +384,8 @@ export function AudioCaptcha({ onSuccess }: AudioCaptchaProps) {
           );
           stopRecording(false);
           setStage("bot-detected");
+          onSuccess(true);
+          return;
         }
       }
     } catch (error) {
@@ -477,6 +479,7 @@ export function AudioCaptcha({ onSuccess }: AudioCaptchaProps) {
           botResults[0].botLikeReason || "Synthetic audio detected"
         );
         setStage("bot-detected");
+        onSuccess(true);
         return;
       }
 
@@ -486,7 +489,7 @@ export function AudioCaptcha({ onSuccess }: AudioCaptchaProps) {
         if (successTriggeredRef.current) return;
         successTriggeredRef.current = true;
         setStage("success");
-        onSuccess();
+        onSuccess(false);
         return;
       }
       // Otherwise, do a more thorough analysis of the recording
@@ -513,7 +516,7 @@ export function AudioCaptcha({ onSuccess }: AudioCaptchaProps) {
 
         successTriggeredRef.current = true;
         setStage("success");
-        onSuccess();
+        onSuccess(false);
       } else {
         setFailureMessage(
           "We couldn't match your tone with the expected frequency"
