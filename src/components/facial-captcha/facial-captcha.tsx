@@ -15,10 +15,10 @@ const expressions: (keyof typeof expressionEmojis)[] = Object.keys(
   expressionEmojis
 ) as any;
 
-const holdDuration = 700; // time the user most hold the expression (.7 second)
+const holdDuration = 500; // time the user most hold the expression (.5 second)
 
 type Props = {
-  onSuccess: (status: boolean | "timeout") => void;
+  onSuccess: () => void;
 };
 
 export function ExpressionSequence({ onSuccess }: Props) {
@@ -31,30 +31,15 @@ export function ExpressionSequence({ onSuccess }: Props) {
   const skippedExpressionRef = useRef<Set<keyof typeof expressionEmojis>>(
     new Set()
   ); // tracks skipped expressions
-  // Change to store all expression confidences for each frame
-  const frameConfidencesRef = useRef<{ [key: string]: number[] }>({});
-  const [botDetected, setBotDetected] = useState(false);
-  const startTimeRef = useRef<number>(Date.now());
 
   const [stage, setStage] = useState<
-    "loading" | "expression" | "bot_detected" | "timeout" | "success"
-  >("loading");
+    "initial" | "loading" | "expression" | "success" | "permission-error"
+  >("initial");
   const [currentTargetEmoji, setCurrentTargetEmoji] = useState(""); // emoji to show the user
   const [currentExpressionIndex, setCurrentExpressionIndex] = useState(0); // which expression in the sequence we're on
   const [holdProgress, setHoldProgress] = useState(0); // progress bar for holding the expression
 
-  // Helper function to clean up timers and camera
-  const cleanup = () => {
-    console.log("Cleaning up...");
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    if (videoRef.current?.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      stream.getTracks().forEach((track) => track.stop());
-      videoRef.current.srcObject = null;
-    }
-  };
-
-  // load the models when the component mounts
+  // Cleanup function for when component unmounts
   useEffect(() => {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
@@ -135,11 +120,10 @@ export function ExpressionSequence({ onSuccess }: Props) {
         }
 
         sequenceRef.current = generatedSequence;
-        startTimeRef.current = Date.now();
         setCurrentTargetEmoji(expressionEmojis[generatedSequence[0]]);
 
         // Set up interval to process video frames every 100ms
-        intervalRef.current = window.setInterval(processFrame, 150);
+        intervalRef.current = window.setInterval(processFrame, 100);
       };
 
       // Start the attachment process
@@ -154,15 +138,6 @@ export function ExpressionSequence({ onSuccess }: Props) {
   const processFrame = async () => {
     if (!videoRef.current) return;
 
-    // Check for timeout
-    const elapsedTime = Date.now() - startTimeRef.current;
-    if (elapsedTime >= 20000) {
-      setStage("timeout");
-      cleanup();
-      onSuccess("timeout");
-      return;
-    }
-
     const detections = await faceapi
       .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions())
       .withFaceExpressions();
@@ -173,61 +148,32 @@ export function ExpressionSequence({ onSuccess }: Props) {
       return;
     }
     // Fix type issue by first casting to unknown then to the desired type
-    const expressionsDetected =
-      detections.expressions as unknown as unknown as Record<string, number>;
+    const expressionsDetected = detections.expressions as unknown as Record<
+      string,
+      number
+    >;
 
-    // Store confidences for all expressions in this frame
-    Object.entries(expressionsDetected).forEach(([expression, confidence]) => {
-      if (!frameConfidencesRef.current[expression]) {
-        frameConfidencesRef.current[expression] = [];
-      }
-      frameConfidencesRef.current[expression].push(confidence);
-      // Keep only last 5 frames
-      if (frameConfidencesRef.current[expression].length > 5) {
-        frameConfidencesRef.current[expression].shift();
-      }
-    });
-
-    // TODO: MAKE SURE TIMER IS STOPPED WHENEVER VERIFIED/BOT DETECTED.
-    // TODO: CAMERA SHOULD BE STOPPED WHENEVER VERIFIED/BOT DETECTED.
-
-    // Check for suspicious activity (all expressions have identical patterns across 5 frames)
-    const allExpressions = Object.keys(expressionsDetected);
-    if (
-      allExpressions.every(
-        (expr) => frameConfidencesRef.current[expr]?.length === 5
-      )
-    ) {
-      const isSuspicious = allExpressions.every((expr) => {
-        const confidences = frameConfidencesRef.current[expr];
-        // Check if all confidences for this expression are identical
-        return confidences.every(
-          (score) => Math.abs(score - confidences[0]) < 0.000000001
-        );
-      });
-
-      if (isSuspicious) {
-        setBotDetected(true);
-        setStage("bot_detected");
-        cleanup();
-        onSuccess(true);
-        return;
-      }
-    }
+    // sorts expressions in order of confidence scores
+    const sorted = Object.entries(expressionsDetected).sort(
+      (a, b) => b[1] - a[1]
+    );
+    // gets element with highest confidence
+    //const [expression, confidence] = sorted[0];
 
     const targetExpression = sequenceRef.current[currentIndexRef.current];
     const confidence = expressionsDetected[targetExpression];
-
-    let target = 0.5;
+    console.log(confidence);
+    // if top expression matches target expression and with high enough confidence
+    //if (expression === targetExpression && confidence > 0.5) {
+    let target = 0.5; // default target confidence
+    // set target confidence based on the target expression
     // happy and neutral are easier to hold, sad is harder, surprised/fearful/angry are hardest
     if (targetExpression == "happy" || targetExpression == "neutral") {
-      target = 0.4;
+      target = 0.5;
     } else if (targetExpression == "sad") {
+      target = 0.4;
+    } else if (targetExpression == "surprised" || targetExpression == "angry") {
       target = 0.3;
-    } else if (targetExpression == "surprised") {
-      target = 0.2;
-    } else if (targetExpression == "angry") {
-      target = 0.1;
     }
     if (confidence > target) {
       if (!holdStartTimeRef.current) {
@@ -247,8 +193,7 @@ export function ExpressionSequence({ onSuccess }: Props) {
         if (nextIndex >= sequenceRef.current.length) {
           // all expressions done
           setStage("success");
-          cleanup();
-          onSuccess(false);
+          onSuccess();
           return;
         } else {
           // move onto the next expression
@@ -454,7 +399,7 @@ export function ExpressionSequence({ onSuccess }: Props) {
                       expressions[
                         Math.floor(Math.random() * expressions.length)
                       ];
-                  } while (skippedExpressionRef.current.has(newExpr));
+                  } while (skippedExpressionRef.current.has(newExpr)); // Avoid skipped ones
 
                   sequenceRef.current[currentIndexRef.current] = newExpr;
                   setCurrentTargetEmoji(expressionEmojis[newExpr]);
@@ -474,29 +419,20 @@ export function ExpressionSequence({ onSuccess }: Props) {
                   ? "bg-gray-200 hover:bg-gray-300 text-gray-800"
                   : "bg-gray-100 text-gray-400 cursor-not-allowed"
               }`}
-              aria-label={`Skip expression (${skipsLeft} remaining)`}
-              aria-disabled={skipsLeft <= 0}
-              aria-describedby="skip-description"
             >
-              <span aria-hidden="true">Skip ({skipsLeft} left)</span>
-              <div id="skip-description" className="sr-only">
-                Skip the current expression if it's too difficult. Limited skips
-                available.
-              </div>
+              Skip ({skipsLeft} left)
             </button>
           </div>
         </div>
       )}
 
       {stage === "success" && (
-        <div role="status" aria-live="polite" aria-label="Challenge completed">
-          <p aria-hidden="true">🎉 You completed the sequence!</p>
-        </div>
-      )}
-
-      {stage === "timeout" && (
-        <div role="status" aria-live="polite" aria-label="Challenge timed out">
-          <p aria-hidden="true">⏰ Time's up! Please try again.</p>
+        <div className="text-center py-10" aria-live="polite">
+          <div className="text-5xl mb-4" aria-hidden="true">
+            🎉
+          </div>
+          <h2 className="text-2xl font-bold text-green-600 mb-2">Success!</h2>
+          <p className="text-lg">You completed the expression sequence!</p>
         </div>
       )}
     </div>
