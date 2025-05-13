@@ -92,7 +92,7 @@ export default function ExpressionSequence({ onSuccess }: Props) {
     setStage("expression");
 
     // Set up interval to process video frames every 100ms
-    intervalRef.current = window.setInterval(processFrame, 100);
+    intervalRef.current = window.setInterval(processFrame, 150);
   };
 
   // process each frame to detect facial expressions
@@ -148,7 +148,7 @@ export default function ExpressionSequence({ onSuccess }: Props) {
         const confidences = frameConfidencesRef.current[expr];
         // Check if all confidences for this expression are identical
         return confidences.every(
-          (score) => Math.abs(score - confidences[0]) < 0.0000000001
+          (score) => Math.abs(score - confidences[0]) < 0.000000001
         );
       });
 
