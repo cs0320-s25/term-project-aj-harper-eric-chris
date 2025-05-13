@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import ExpressionSequence from "./components/facial-captcha/facial-captcha";
+import { ExpressionSequence } from "./components/facial-captcha/facial-captcha";
 import { AudioCaptcha } from "./components/audio-captcha/audio-captcha";
 import { ErrorBoundary } from "react-error-boundary";
 
