@@ -33,15 +33,14 @@ export function ExpressionSequence({ onSuccess }: Props) {
   ); // tracks skipped expressions
 
   const [stage, setStage] = useState<
-    "loading" | "expression" | "success" | "permission-error"
-  >("loading");
+    "initial" | "loading" | "expression" | "success" | "permission-error"
+  >("initial");
   const [currentTargetEmoji, setCurrentTargetEmoji] = useState(""); // emoji to show the user
   const [currentExpressionIndex, setCurrentExpressionIndex] = useState(0); // which expression in the sequence we're on
   const [holdProgress, setHoldProgress] = useState(0); // progress bar for holding the expression
 
-  // load the models when the component mounts
+  // Cleanup function for when component unmounts
   useEffect(() => {
-    loadModels();
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
       // Cleanup video stream if it exists
@@ -50,6 +49,12 @@ export function ExpressionSequence({ onSuccess }: Props) {
       }
     };
   }, []);
+
+  // Function to handle the start button click
+  const handleStart = () => {
+    setStage("loading");
+    loadModels();
+  };
 
   // Reference to store the media stream for cleanup
   const streamRef = useRef<MediaStream | null>(null);
@@ -199,6 +204,24 @@ export function ExpressionSequence({ onSuccess }: Props) {
 
   return (
     <div className="flex flex-col items-center justify-center w-full max-w-md mx-auto">
+      {stage === "initial" && (
+        <div>
+          <h3 className="text-lg font-medium mb-2 text-center">
+            Facial Expression Verification
+          </h3>
+          <p className="text-sm text-gray-600 dark:text-gray-300 mb-4 text-center">
+            Complete a sequence of facial expressions to verify you're human.
+          </p>
+          <button
+            onClick={handleStart}
+            className="w-full bg-primary-500 hover:bg-primary-600 text-white py-2 px-4 rounded-md transition-colors"
+            aria-label="Start facial expression challenge"
+          >
+            Start
+          </button>
+        </div>
+      )}
+
       {stage === "loading" && (
         <div className="py-10 text-center" aria-live="polite">
           <div

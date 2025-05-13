@@ -1,26 +1,29 @@
 {
   "name": "mimicaptcha",
   "version": "0.1.0",
-  "description": "A multi-modal CAPTCHA system based on human mimicry",
+  "description": "A multi-modal CAPTCHA system based on human mimicry capabilities",
   "main": "dist/index.js",
   "module": "dist/index.esm.js",
   "types": "dist/index.d.ts",
+  "type": "module",
   "sideEffects": false,
-  "private": false,
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "scripts/postinstall.cjs"
   ],
   "scripts": {
-    "build": "rollup -c",
+    "build": "rollup -c rollup.config.cjs",
     "build:types": "tsc --emitDeclarationOnly",
-    "build:all": "npm run build && npm run build:types",
+    "build:models": "node scripts/copyModels.cjs",
+    "build:all": "npm run clean && npm run build && npm run build:types && npm run build:models",
     "clean": "rimraf dist",
     "dev": "vite",
     "start": "vite",
     "lint": "eslint src --ext .ts,.tsx",
     "test": "jest",
-    "prepare": "npm run clean && npm run build:all"
+    "prepare": "npm run build:all",
+    "postinstall": "node scripts/postinstall.cjs"
   },
   "dependencies": {
     "face-api.js": "^0.22.2",

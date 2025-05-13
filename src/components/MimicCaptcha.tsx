@@ -1,69 +1,221 @@
 import React, { useState } from "react";
 import { AudioCaptcha } from "./audio-captcha/audio-captcha";
 import { ExpressionSequence } from "./facial-captcha/facial-captcha";
+import { ErrorBoundary } from "react-error-boundary";
 
+/**
+ * MimicCaptcha component props
+ */
 export interface MimicCaptchaProps {
   /**
    * Function to call when captcha is successfully completed
    */
   onSuccess: () => void;
+
   /**
-   * Initial captcha type to show (audio or facial)
+   * Function to call when captcha fails (max attempts reached)
+   */
+  onFailure?: () => void;
+
+  /**
+   * Initial captcha type to show
    * @default "audio"
    */
   defaultType?: "audio" | "facial";
+
   /**
    * Whether to show tabs for switching between captcha types
    * @default true
    */
   showTypeSwitcher?: boolean;
+
+  /**
+   * Maximum number of attempts allowed before triggering onFailure
+   * @default 3
+   */
+  maxAttempts?: number;
+
+  /**
+   * Difficulty level for the captcha
+   * @default "medium"
+   */
+  difficulty?: "easy" | "medium" | "hard";
+
+  /**
+   * Size of the captcha container
+   * @default "default"
+   */
+  size?: "small" | "default" | "large";
+
   /**
    * Custom classes for container
    */
   className?: string;
+
   /**
    * Custom styles for container
    */
   style?: React.CSSProperties;
+
+  /**
+   * Whether to enable dark mode
+   * @default false
+   */
+  darkMode?: boolean;
+
+  /**
+   * Whether to show the success message after verification
+   * @default true
+   */
+  showSuccessMessage?: boolean;
+
+  /**
+   * Custom success message
+   */
+  successMessage?: string;
+
+  /**
+   * Time in milliseconds to show success message before calling onSuccess
+   * @default 1500
+   */
+  successMessageDuration?: number;
 }
+
+/**
+ * Default props for the MimicCaptcha component
+ */
+const defaultProps: Partial<MimicCaptchaProps> = {
+  defaultType: "audio",
+  showTypeSwitcher: true,
+  maxAttempts: 3,
+  difficulty: "medium",
+  size: "default",
+  className: "",
+  darkMode: false,
+  showSuccessMessage: true,
+  successMessage: "Human verification successful!",
+  successMessageDuration: 1500,
+};
 
 /**
  * MimicCaptcha - Main component that allows users to verify they are human
  * through audio tone matching or facial expression matching
  */
-export function MimicCaptcha({
-  onSuccess,
-  defaultType = "audio",
-  showTypeSwitcher = true,
-  className = "",
-  style = {},
-}: MimicCaptchaProps) {
+export function MimicCaptcha(props: MimicCaptchaProps) {
+  // Merge default props with user props
+  const {
+    onSuccess,
+    onFailure,
+    defaultType,
+    showTypeSwitcher,
+    maxAttempts,
+    difficulty,
+    size,
+    className,
+    style,
+    darkMode,
+    showSuccessMessage,
+    successMessage,
+    successMessageDuration,
+  } = { ...defaultProps, ...props };
+
   // State for which captcha type is active
   const [captchaType, setCaptchaType] = useState<"audio" | "facial">(
-    defaultType
+    defaultType!
   );
   const [captchaVerified, setCaptchaVerified] = useState(false);
+  const [attempts, setAttempts] = useState(0);
+  const [showingSuccess, setShowingSuccess] = useState(false);
 
+  // Handle success from the captcha components
   const handleCaptchaSuccess = () => {
     setCaptchaVerified(true);
-    onSuccess();
+
+    if (showSuccessMessage) {
+      setShowingSuccess(true);
+      setTimeout(() => {
+        setShowingSuccess(false);
+        onSuccess();
+      }, successMessageDuration);
+    } else {
+      onSuccess();
+    }
   };
 
+  // Handle failure from the captcha components
+  const handleCaptchaFailure = () => {
+    setAttempts(attempts + 1);
+    if (attempts + 1 >= maxAttempts! && onFailure) {
+      onFailure();
+    }
+  };
+
+  // Reset the captcha
   const resetCaptcha = () => {
     setCaptchaVerified(false);
+    setShowingSuccess(false);
   };
 
-  // Style variables
-  const containerClass = `bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 ${className}`;
+  // Error fallback component
+  const ErrorFallback = ({
+    error,
+    resetErrorBoundary,
+  }: {
+    error: Error;
+    resetErrorBoundary: () => void;
+  }) => {
+    return (
+      <div className="flex flex-col items-center justify-center p-4 bg-red-50 dark:bg-red-900 rounded-lg">
+        <h2 className="text-lg font-bold text-red-600 dark:text-red-300 mb-2">
+          Error:
+        </h2>
+        <pre className="text-sm text-red-500 dark:text-red-300 bg-red-100 dark:bg-red-800 p-2 rounded mb-4 overflow-auto max-w-full">
+          {error.message}
+        </pre>
+        <button
+          onClick={resetErrorBoundary}
+          className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+          aria-label="Try again"
+        >
+          Try again
+        </button>
+      </div>
+    );
+  };
+
+  // Generate size classes
+  const sizeClasses = {
+    small: "max-w-xs",
+    default: "max-w-md",
+    large: "max-w-lg",
+  };
+
+  // Base container classes
+  const containerClass = `${
+    darkMode ? "dark" : ""
+  } bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4 ${
+    sizeClasses[size!]
+  } ${className}`;
   const tabClass = "py-2 px-4 rounded-md transition-colors";
   const activeTabClass = "bg-blue-500 text-white";
   const inactiveTabClass =
     "bg-gray-200 hover:bg-gray-300 text-gray-800 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600";
 
-  if (captchaVerified) {
+  // Pass difficulty to captcha components
+  const captchaProps = {
+    onSuccess: handleCaptchaSuccess,
+    onFailure: handleCaptchaFailure,
+    difficulty,
+  };
+
+  if (captchaVerified && showingSuccess) {
     return (
-      <div className={containerClass} style={style}>
-        <div className="text-center">
+      <div
+        className={containerClass}
+        style={style}
+        data-testid="mimic-captcha-success"
+      >
+        <div className="text-center py-4">
           <div className="text-green-500 mb-4">
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -81,25 +233,20 @@ export function MimicCaptcha({
               />
             </svg>
           </div>
-          <h2 className="text-2xl font-bold mb-2">Verification Successful!</h2>
+          <h2 className="text-2xl font-bold mb-2 text-gray-800 dark:text-gray-100">
+            Verification Successful!
+          </h2>
           <p className="text-gray-600 dark:text-gray-300 mb-4">
-            You have successfully verified that you are human.
+            {successMessage}
           </p>
-          <button
-            onClick={resetCaptcha}
-            className="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-md transition-colors"
-            aria-label="Try the captcha challenge again"
-          >
-            Try Again
-          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className={containerClass} style={style}>
-      <div className="flex items-center mb-6">
+    <div className={containerClass} style={style} data-testid="mimic-captcha">
+      <div className="flex items-center mb-4">
         <div className="mr-3 bg-blue-100 dark:bg-blue-900 p-2 rounded-full">
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -128,12 +275,12 @@ export function MimicCaptcha({
       </div>
 
       {showTypeSwitcher && (
-        <div className="grid grid-cols-2 gap-2 mb-4">
+        <div className="flex space-x-2 mb-4">
           <button
-            className={`${tabClass} ${
+            onClick={() => setCaptchaType("audio")}
+            className={`flex-1 ${tabClass} ${
               captchaType === "audio" ? activeTabClass : inactiveTabClass
             }`}
-            onClick={() => setCaptchaType("audio")}
             aria-pressed={captchaType === "audio"}
             aria-label="Switch to audio captcha"
           >
@@ -157,10 +304,10 @@ export function MimicCaptcha({
             </span>
           </button>
           <button
-            className={`${tabClass} ${
+            onClick={() => setCaptchaType("facial")}
+            className={`flex-1 ${tabClass} ${
               captchaType === "facial" ? activeTabClass : inactiveTabClass
             }`}
-            onClick={() => setCaptchaType("facial")}
             aria-pressed={captchaType === "facial"}
             aria-label="Switch to facial expression captcha"
           >
@@ -186,17 +333,21 @@ export function MimicCaptcha({
         </div>
       )}
 
-      <div className="space-y-4">
+      <div className="captcha-content">
         {captchaType === "audio" ? (
-          <div role="tabpanel" aria-label="Audio captcha challenge">
-            <AudioCaptcha onSuccess={handleCaptchaSuccess} />
-          </div>
+          <AudioCaptcha {...captchaProps} />
         ) : (
-          <div role="tabpanel" aria-label="Facial expression captcha challenge">
-            <ExpressionSequence onSuccess={handleCaptchaSuccess} />
-          </div>
+          <ErrorBoundary FallbackComponent={ErrorFallback}>
+            <ExpressionSequence {...captchaProps} />
+          </ErrorBoundary>
         )}
       </div>
+
+      {maxAttempts! > 1 && attempts > 0 && (
+        <div className="mt-2 text-xs text-right text-gray-500 dark:text-gray-400">
+          Attempts: {attempts}/{maxAttempts}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,108 +1,151 @@
 # MimicCaptcha
 
-A modern, accessible CAPTCHA alternative based on human mimicry capabilities.
+A modern, accessible CAPTCHA alternative for React applications that uses mimicry-based human verification.
 
-[![npm version](https://img.shields.io/npm/v/mimicaptcha.svg)](https://www.npmjs.com/package/mimicaptcha)
-[![license](https://img.shields.io/npm/l/mimicaptcha.svg)](https://github.com/user/mimicaptcha/blob/main/LICENSE)
-
-MimicCaptcha provides a more engaging, interactive, and accessible alternative to traditional CAPTCHA systems. Instead of deciphering distorted text or selecting images, users prove they're human by mimicking audio tones or facial expressions.
+![MimicCaptcha](https://img.shields.io/badge/MimicCaptcha-v0.1.0-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+![React](https://img.shields.io/badge/React-18.x-61dafb)
 
 ## Features
 
-- 🔊 **Audio Tone Matching**: Users mimic a tone with their voice
-- 😀 **Facial Expression Matching**: Users match a series of facial expressions
-- ♿ **Accessibility First**: Built with a focus on accessibility standards
-- 🎨 **Customizable**: Easy to integrate and style with your application
-- 🔥 **Framework Agnostic**: Works with any React-based application
+- **Dual Verification Modes**: Audio tone mimicry and facial expression mimicry
+- **Accessibility-First Design**: Built with WCAG guidelines in mind
+- **Highly Customizable**: Configure difficulty, attempts, size, and more
+- **Standalone**: No external API dependencies, works locally
+- **Developer-Friendly**: Simple API with TypeScript support
+- **Zero Next.js Dependencies**: Works with any React framework
 
 ## Installation
 
 ```bash
 npm install mimicaptcha
-# or
-yarn add mimicaptcha
 ```
+
+After installation, the post-install script will prompt you to set up the face detection models:
+
+```
+🤖 MimicCaptcha - Post-installation Setup 🤖
+
+The facial recognition captcha requires model files to work properly.
+Would you like to copy the face detection models? (Y/n):
+```
+
+If you choose yes, the models will be copied to your project's public directory.
 
 ## Usage
 
-MimicCaptcha can be used as a standalone component or integrated into forms:
+### Basic Usage
 
 ```jsx
-import React, { useState } from "react";
+import React from "react";
 import { MimicCaptcha } from "mimicaptcha";
 
 function MyForm() {
-  const [verified, setVerified] = useState(false);
-
   const handleSuccess = () => {
-    setVerified(true);
-    // Now you can allow form submission
+    console.log("Human verification successful!");
+    // Allow form submission or other actions
   };
 
   return (
-    <form onSubmit={handleSubmit}>
-      {/* Your form fields */}
+    <div className="form-container">
+      <h2>Contact Form</h2>
+      <form>
+        {/* Your form fields */}
 
-      <MimicCaptcha
-        onSuccess={handleSuccess}
-        defaultType="audio" // or "facial"
-        showTypeSwitcher={true}
-      />
+        <div className="captcha-container">
+          <MimicCaptcha onSuccess={handleSuccess} />
+        </div>
 
-      <button type="submit" disabled={!verified}>
-        Submit
-      </button>
-    </form>
+        <button type="submit">Submit</button>
+      </form>
+    </div>
   );
 }
 ```
 
-## Component Options
-
-### MimicCaptcha Component
-
-| Prop               | Type                  | Default    | Description                                                    |
-| ------------------ | --------------------- | ---------- | -------------------------------------------------------------- |
-| `onSuccess`        | `() => void`          | (required) | Function called when user successfully completes the challenge |
-| `defaultType`      | `"audio" \| "facial"` | `"audio"`  | Initial captcha type to display                                |
-| `showTypeSwitcher` | `boolean`             | `true`     | Whether to show tabs to switch between audio/facial            |
-| `className`        | `string`              | `""`       | Additional CSS classes for the container                       |
-| `style`            | `CSSProperties`       | `{}`       | Inline styles for the container                                |
-
-### Individual Components
-
-You can also use the individual CAPTCHA components if you prefer:
+### Advanced Configuration
 
 ```jsx
-import { AudioCaptcha, ExpressionSequence } from 'mimicaptcha';
+import React from "react";
+import { MimicCaptcha } from "mimicaptcha";
 
-// For audio only
-<AudioCaptcha onSuccess={handleSuccess} />
+function AdvancedForm() {
+  const handleSuccess = () => {
+    console.log("Verification successful!");
+  };
 
-// For facial expressions only
-<ExpressionSequence onSuccess={handleSuccess} />
+  const handleFailure = () => {
+    console.log("Maximum attempts reached");
+  };
+
+  return (
+    <MimicCaptcha
+      onSuccess={handleSuccess}
+      onFailure={handleFailure}
+      defaultType="facial"
+      showTypeSwitcher={true}
+      maxAttempts={5}
+      difficulty="hard"
+      size="large"
+      darkMode={true}
+      showSuccessMessage={true}
+      successMessage="Great job, human!"
+      successMessageDuration={2000}
+    />
+  );
+}
 ```
+
+## Configuration Options
+
+| Prop                     | Type                              | Default                            | Description                                              |
+| ------------------------ | --------------------------------- | ---------------------------------- | -------------------------------------------------------- |
+| `onSuccess`              | `() => void`                      | (required)                         | Callback function when verification is successful        |
+| `onFailure`              | `() => void`                      | `undefined`                        | Callback when max attempts are reached                   |
+| `defaultType`            | `"audio" \| "facial"`             | `"audio"`                          | Initial captcha type to show                             |
+| `showTypeSwitcher`       | `boolean`                         | `true`                             | Whether to show tabs for switching between captcha types |
+| `maxAttempts`            | `number`                          | `3`                                | Maximum number of attempts allowed                       |
+| `difficulty`             | `"easy" \| "medium" \| "hard"`    | `"medium"`                         | Difficulty level for the captcha                         |
+| `size`                   | `"small" \| "default" \| "large"` | `"default"`                        | Size of the captcha container                            |
+| `className`              | `string`                          | `""`                               | Custom classes for container                             |
+| `style`                  | `React.CSSProperties`             | `undefined`                        | Custom styles for container                              |
+| `darkMode`               | `boolean`                         | `false`                            | Whether to enable dark mode                              |
+| `showSuccessMessage`     | `boolean`                         | `true`                             | Whether to show the success message                      |
+| `successMessage`         | `string`                          | `"Human verification successful!"` | Custom success message                                   |
+| `successMessageDuration` | `number`                          | `1500`                             | Time in ms to show success message                       |
+
+## Sample Application
+
+A sample application is included to demonstrate the MimicCaptcha integration:
+
+```bash
+# Navigate to the sample app directory
+cd sample-app
+
+# Run the setup script to set up the models
+npm run setup
+
+# Install dependencies
+npm install
+
+# Start the development server
+npm run dev
+```
+
+The sample app showcases a registration form with customizable MimicCaptcha settings.
 
 ## Accessibility Features
 
-MimicCaptcha has been designed with accessibility in mind:
+MimicCaptcha is designed with accessibility in mind:
 
-- **Audio Captcha**: Screen reader announcements for all states, keyboard navigation support
-- **Facial Captcha**: Clear visual indicators, appropriate alt-text, camera permission handling
-- **ARIA attributes**: Proper labeling, live regions, and role attributes
-- **Keyboard Navigation**: Full support for keyboard navigation
-- **Error States**: Clear and descriptive error messages with visual cues
-- **Device Permissions**: Clear explanations when camera or microphone permissions are needed
-
-## Browser Support
-
-MimicCaptcha works in all modern browsers that support the Web Audio API and getUserMedia API:
-
-- Chrome (latest)
-- Firefox (latest)
-- Safari (latest)
-- Edge (latest)
+- **Keyboard Navigation**: Full keyboard support with proper focus management
+- **Screen Reader Support**: ARIA attributes and live regions for important announcements
+- **Multiple Verification Methods**: Users can choose between audio or visual verification
+- **Clear Instructions**: Descriptive guidance throughout the verification process
+- **Error Handling**: Accessible error states with clear feedback
+- **Color Contrast**: Compliant with WCAG color contrast requirements
+- **Customization**: Adjustable difficulty levels for different abilities
 
 ## License
 
-MIT © [Your Organization]
+MIT License © 2025 MimicCaptcha
