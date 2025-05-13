@@ -14,7 +14,6 @@ const expressionEmojis: { [key: string]: string } = {
 const expressions: (keyof typeof expressionEmojis)[] = Object.keys(
   expressionEmojis
 ) as any;
-
 const holdDuration = 500; // time the user most hold the expression (.5 second)
 
 type Props = {

@@ -16,7 +16,7 @@ enum CaptchaType {
 const App: React.FC = () => {
   const [tabView, setTabView] = useState<
     "original" | "individual" | "form-demo"
-  >("form-demo");
+  >("original");
   const [captchaVerified, setCaptchaVerified] = useState(false);
   const [selectedCaptchaType, setSelectedCaptchaType] = useState<
     "audio" | "facial"
@@ -35,10 +35,12 @@ const App: React.FC = () => {
     "idle" | "success" | "error"
   >("idle");
 
-  const handleCaptchaSuccess = () => {
-    console.log("CAPTCHA verified successfully!");
+  const handleCaptchaSuccess = () => { 
+
     alert("CAPTCHA verified successfully!");
     setCaptchaVerified(true);
+    setCaptchaVerified(false)
+
   };
 
   // Form demo handlers
@@ -280,7 +282,7 @@ const App: React.FC = () => {
                 <div className="mt-4">
                   <ErrorBoundary FallbackComponent={ErrorFallback}>
                     <ExpressionSequence
-                      onSuccess={() => alert("Facial success!")}
+                      onSuccess={handleCaptchaSuccess}
                     />
                   </ErrorBoundary>
                 </div>

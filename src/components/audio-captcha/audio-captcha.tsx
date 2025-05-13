@@ -484,13 +484,11 @@ export function AudioCaptcha({ onSuccess }: AudioCaptchaProps) {
       if (matchAchieved) {
         // Prevent auto-pass to next round by checking if success was already triggered
         if (successTriggeredRef.current) return;
-
         successTriggeredRef.current = true;
         setStage("success");
         onSuccess();
         return;
       }
-
       // Otherwise, do a more thorough analysis of the recording
       // Check if there are at least 3 consecutive matching frequencies
       let consecutiveMatches = 0;
