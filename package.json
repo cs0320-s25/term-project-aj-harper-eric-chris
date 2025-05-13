@@ -42,7 +42,7 @@
   "peerDependenciesMeta": {
     "framer-motion": {
       "optional": true
-   `}
+   }
    },
 
   "devDependencies": {

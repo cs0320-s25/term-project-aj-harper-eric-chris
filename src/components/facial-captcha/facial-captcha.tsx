@@ -18,7 +18,7 @@ const expressions: (keyof typeof expressionEmojis)[] = Object.keys(
 const holdDuration = 500; // time the user most hold the expression (.5 second)
 
 type Props = {
-  onSuccess: () => void;
+  onSuccess: (status: boolean | "timeout") => void;
 };
 
 // Add new types for webcam verification
@@ -28,7 +28,7 @@ type FrameData = {
   faceDetected: boolean;
 };
 
-export default function ExpressionSequence({ onSuccess }: Props) {
+export function ExpressionSequence({ onSuccess }: Props) {
   const [skipsLeft, setSkipsLeft] = useState(2); // number of skips the user has
   const videoRef = useRef<HTMLVideoElement>(null); // reference to the video element
   const intervalRef = useRef<number | null>(null); // reference to interval element
@@ -45,7 +45,7 @@ export default function ExpressionSequence({ onSuccess }: Props) {
 
 
   const [stage, setStage] = useState<
-    "initial" | "loading" | "expression" | "success" | "permission-error"
+    "initial" | "loading" | "expression" | "success" | "permission-error" | "bot_detected" | "timeout"
   >("initial");
   const [currentTargetEmoji, setCurrentTargetEmoji] = useState(""); // emoji to show the user
   const [currentExpressionIndex, setCurrentExpressionIndex] = useState(0); // which expression in the sequence we're on
@@ -57,8 +57,23 @@ export default function ExpressionSequence({ onSuccess }: Props) {
   const frameCountRef = useRef<number>(0);
   const suspiciousFrameCountRef = useRef<number>(0);
 
+  useEffect(() => {
+    console.log(`[DEBUG] STAGE → ${stage}`);
+  }, [stage]);
+
+  const cleanup = () => {
+    console.log("Cleaning up...");
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    if (videoRef.current?.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach((track) => track.stop());
+      videoRef.current.srcObject = null;
+    }
+  };
+
   // Cleanup function for when component unmounts
   useEffect(() => {
+    loadModels();
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
       // Cleanup video stream if it exists
@@ -70,8 +85,8 @@ export default function ExpressionSequence({ onSuccess }: Props) {
 
   // Function to handle the start button click
   const handleStart = () => {
+    console.log("[DEBUG] handleStart() clicked");
     setStage("loading");
-    loadModels();
   };
 
   // Reference to store the media stream for cleanup
@@ -84,8 +99,10 @@ export default function ExpressionSequence({ onSuccess }: Props) {
       const MODEL_URL =
         process.env.NODE_ENV === "production" ? "/models" : "/models";
       console.log("Loading models from:", MODEL_URL);
+      console.log("[DEBUG] loadModels(): loading face-api models");
       await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
       await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
+      console.log("[DEBUG] loadModels(): models loaded OK");
       await startVideo();
     } catch (error) {
       console.error("Error loading models:", error);
@@ -176,13 +193,13 @@ export default function ExpressionSequence({ onSuccess }: Props) {
       canvas.width = 640;
       canvas.height = 480;
       canvasRef.current = canvas;
-
     }
   };
 
   // Modify startVideo function
   const startVideo = async () => {
     try {
+      console.log("[DEBUG] startVideo(): requesting getUserMedia");
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           width: { ideal: 640 },
@@ -190,9 +207,11 @@ export default function ExpressionSequence({ onSuccess }: Props) {
           facingMode: "user",
         },
       });
+      console.log("[DEBUG] startVideo(): got stream", stream);
 
       // Verify webcam
       await verifyWebcam(stream);
+      console.log("[DEBUG] startVideo(): webcam verified");
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -211,7 +230,7 @@ export default function ExpressionSequence({ onSuccess }: Props) {
 
         generatedSequence.push(nextExpr);
       }
-
+      console.log("[DEBUG] startVideo(): sequence generated", generatedSequence);
       sequenceRef.current = generatedSequence;
       setCurrentTargetEmoji(expressionEmojis[generatedSequence[0]]);
       setStage("expression");
@@ -223,6 +242,7 @@ export default function ExpressionSequence({ onSuccess }: Props) {
 
       // Set up interval to process video frames
       intervalRef.current = window.setInterval(processFrame, 150);
+      console.log("[DEBUG] startVideo(): interval set", intervalRef.current);
     } catch (error) {
       console.error("Webcam verification failed:", error);
       setStage("bot_detected");
@@ -233,8 +253,15 @@ export default function ExpressionSequence({ onSuccess }: Props) {
 
   // Modify processFrame function
   const processFrame = async () => {
-    if (!videoRef.current || !canvasRef.current) return;
-
+    console.log("[DEBUG] processFrame(): entering");
+    if (!videoRef.current || !canvasRef.current)
+      { 
+        console.log("video")
+        console.log(videoRef)
+        console.log(canvasRef)
+        console.log("exiting")
+        return;
+      }
 
     // Check for timeout
     const elapsedTime = Date.now() - startTimeRef.current;
@@ -249,7 +276,7 @@ export default function ExpressionSequence({ onSuccess }: Props) {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-
+    console.log("[DEBUG] processFrame(): drawing video");
     ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
     const currentFrame: FrameData = {
       timestamp: Date.now(),
@@ -260,8 +287,9 @@ export default function ExpressionSequence({ onSuccess }: Props) {
     const detections = await faceapi
       .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions())
       .withFaceExpressions();
-
+    console.log("[DEBUG] processFrame(): detections", detections);
     currentFrame.faceDetected = !!detections;
+    console.log("[DEBUG] processFrame(): after analyzeFrameVariations, suspicious count =", suspiciousFrameCountRef.current);
 
     // Analyze frame variations
     if (!analyzeFrameVariations(currentFrame)) {
@@ -361,7 +389,7 @@ export default function ExpressionSequence({ onSuccess }: Props) {
         if (nextIndex >= sequenceRef.current.length) {
           // all expressions done
           setStage("success");
-          onSuccess();
+          onSuccess(true);
           return;
         } else {
           // move onto the next expression
@@ -607,6 +635,3 @@ export default function ExpressionSequence({ onSuccess }: Props) {
     </div>
   );
 }
-
-// Default export for compatibility
-export default ExpressionSequence;
