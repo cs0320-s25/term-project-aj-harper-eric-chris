@@ -595,7 +595,7 @@ export function AudioCaptcha({ onSuccess }: AudioCaptchaProps) {
           </p>
           <button
             onClick={handleStart}
-            className="bg-primary-500 hover:bg-primary-600 text-white py-2 px-6 rounded-md transition-colors min-w-[160px]"
+            className="bg-blue-500 hover:bg-blue-600 text-white py-2 px-6 rounded-md transition-colors min-w-[160px]"
             aria-label="Start audio challenge"
           >
             Start
