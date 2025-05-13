@@ -43,7 +43,7 @@ export function ExpressionSequence({ onSuccess }: Props) {
   const startTimeRef = useRef<number>(Date.now());
 
   const [stage, setStage] = useState<
-    "loading" | "expression" | "success" | "bot_detected" | "timeout"
+    "loading" | "expression" | "success" | "bot_detected" | "timeout" | "ready"
   >("loading");
   const [currentTargetEmoji, setCurrentTargetEmoji] = useState(""); // emoji to show the user
   const [currentExpressionIndex, setCurrentExpressionIndex] = useState(0); // which expression in the sequence we're on
@@ -77,7 +77,7 @@ export function ExpressionSequence({ onSuccess }: Props) {
     const MODEL_URL = "/models";
     await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
     await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
-    await startVideo();
+    setStage("ready");
   };
 
   // Add new function to verify webcam
@@ -369,6 +369,28 @@ export function ExpressionSequence({ onSuccess }: Props) {
         <p role="status" aria-live="polite">
           Loading facial recognition models...
         </p>
+      )}
+
+      {stage === "ready" && (
+        <div className="text-center w-full">
+          <h3 className="text-lg font-medium mb-2 text-center">
+            Facial Expression Challenge
+          </h3>
+          <p className="text-sm text-gray-600 dark:text-gray-300 mb-4 text-center">
+            Match each expression in the sequence to verify you're human. You'll
+            need to hold each expression for a moment to proceed.
+          </p>
+          <button
+            onClick={() => {
+              setStage("expression");
+              startVideo();
+            }}
+            className="bg-blue-500 hover:bg-blue-600 text-white py-2 px-6 rounded-md transition-colors min-w-[160px]"
+            aria-label="Start facial challenge"
+          >
+            Start
+          </button>
+        </div>
       )}
 
       {stage === "expression" && !webcamVerified && (
