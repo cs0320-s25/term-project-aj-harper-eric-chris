@@ -3,7 +3,6 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import AudioCaptcha from './audio-captcha';
 
-// Mock the tone detector
 jest.mock('../../lib/toneDetector', () => ({
   defaultToneDetector: {
     generateRandomTone: jest.fn().mockReturnValue(440),
@@ -17,7 +16,6 @@ jest.mock('../../lib/toneDetector', () => ({
   },
 }));
 
-// Mock the Web Audio API
 const mockAudioContext = {
   createAnalyser: jest.fn(),
   createMediaStreamSource: jest.fn(),
@@ -31,7 +29,7 @@ const mockGetUserMedia = jest.fn().mockResolvedValue({
 });
 
 global.AudioContext = jest.fn().mockImplementation(() => mockAudioContext);
-// Mock getUserMedia
+
 Object.defineProperty(global.navigator, 'mediaDevices', {
   value: {
     getUserMedia: jest.fn().mockResolvedValue({
@@ -63,38 +61,40 @@ test('starts recording when start button is clicked', async () => {
 test('calls onSuccess when verification is successful', async () => {
   const mockOnSuccess = jest.fn();
   render(<AudioCaptcha onSuccess={mockOnSuccess} />);
-  const startButton = screen.getByText('Start');
-  fireEvent.click(startButton);
-  await waitFor(() => {
-    expect(screen.getByText('Listen carefully:')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: /^Start$/ }));
+  act(() => {
+    jest.advanceTimersByTime(3000);
+  });
+  expect(
+    await screen.findByText(/Your turn:/i)
+  ).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: /^Start Recording$/ }));
+  act(() => {
+    jest.advanceTimersByTime(50);
   });
   act(() => {
-    jest.advanceTimersByTime(5000);
+    jest.advanceTimersByTime(11000);
   });
+  //here i need to implement some changes
+
   await waitFor(() => {
-    expect(mockOnSuccess).toHaveBeenCalled();
+    expect(mockOnSuccess).toHaveBeenCalledTimes(1);
   });
+
 });
 
 test('shows an error when microphone access is denied', async () => {
-  // have getUserMedia reject once
   mockGetUserMedia.mockRejectedValueOnce(new Error('Permission denied'));
   render(<AudioCaptcha onSuccess={() => {}} />);
   fireEvent.click(screen.getByRole('button', { name: /^Start$/ }));
   act(() => {
     jest.advanceTimersByTime(5000);
   });
-
-  // 3) now the Start Recording button should appear
   const recordBtn = await screen.findByRole('button', {
     name: /^Start Recording$/,
   });
   expect(recordBtn).toBeInTheDocument();
-
-  // 4) click it → invokes getUserMedia → rejects
   fireEvent.click(recordBtn);
-
-  // 5) we should see the microphone‐access error
   expect(
     await screen.findByText(/We couldn't access your microphone/i)
   ).toBeInTheDocument();

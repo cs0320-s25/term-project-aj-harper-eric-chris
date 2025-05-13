@@ -476,7 +476,6 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
         setStage("bot-detected");
         return;
       }
-
       // If we already know the match was achieved, go straight to success
       if (matchAchieved) {
         setStage("success");

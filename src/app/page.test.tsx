@@ -3,13 +3,11 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import Home from './page';
 
-// Mock the dynamic import of FacialCaptcha
 jest.mock('next/dynamic', () => ({
   __esModule: true,
   default: () => () => <div data-testid="mocked-facial-captcha">Facial Captcha</div>,
 }));
 
-// Mock the AudioCaptcha component
 jest.mock('../components/audio-captcha/audio-captcha', () => ({
   __esModule: true,
   default: ({ onSuccess }: { onSuccess: () => void }) => (
@@ -19,7 +17,6 @@ jest.mock('../components/audio-captcha/audio-captcha', () => ({
   ),
 }));
 
-// Mock the CaptchaContainer component
 jest.mock('../components/ui/captcha-container', () => ({
   __esModule: true,
   default: ({ children }: { children: React.ReactNode }) => (
@@ -76,20 +73,16 @@ test('shows success message when captcha is verified', async () => {
 test('allows trying again after successful verification', async () => {
   render(<Home />);
   
-  // First verify
   const verifyButton = screen.getByText('Verify Audio');
   fireEvent.click(verifyButton);
-  
-  // Wait for success message
+
   await waitFor(() => {
     expect(screen.getByText('Verification Successful!')).toBeInTheDocument();
   });
   
-  // Click try again
   const tryAgainButton = screen.getByText('Try Again');
   fireEvent.click(tryAgainButton);
   
-  // Should show captcha again
   expect(screen.getByTestId('audio-captcha')).toBeInTheDocument();
 });
 
