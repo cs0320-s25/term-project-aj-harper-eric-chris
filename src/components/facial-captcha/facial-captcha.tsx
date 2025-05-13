@@ -15,10 +15,10 @@ const expressions: (keyof typeof expressionEmojis)[] = Object.keys(
   expressionEmojis
 ) as any;
 
-const holdDuration = 700; // time the user most hold the expression (.7 second)
+const holdDuration = 500; // time the user most hold the expression (.5 second)
 
 type Props = {
-  onSuccess: (status: boolean | "timeout") => void;
+  onSuccess: () => void;
 };
 
 // Add new types for webcam verification
@@ -38,13 +38,15 @@ export default function ExpressionSequence({ onSuccess }: Props) {
   const skippedExpressionRef = useRef<Set<keyof typeof expressionEmojis>>(
     new Set()
   ); // tracks skipped expressions
+
   // Change to store all expression confidences for each frame
   const frameConfidencesRef = useRef<{ [key: string]: number[] }>({});
   const startTimeRef = useRef<number>(Date.now());
 
+
   const [stage, setStage] = useState<
-    "loading" | "expression" | "success" | "bot_detected" | "timeout"
-  >("loading");
+    "initial" | "loading" | "expression" | "success" | "permission-error"
+  >("initial");
   const [currentTargetEmoji, setCurrentTargetEmoji] = useState(""); // emoji to show the user
   const [currentExpressionIndex, setCurrentExpressionIndex] = useState(0); // which expression in the sequence we're on
   const [holdProgress, setHoldProgress] = useState(0); // progress bar for holding the expression
@@ -55,29 +57,40 @@ export default function ExpressionSequence({ onSuccess }: Props) {
   const frameCountRef = useRef<number>(0);
   const suspiciousFrameCountRef = useRef<number>(0);
 
-  // Helper function to clean up timers and camera
-  const cleanup = () => {
-    console.log("Cleaning up...");
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    if (videoRef.current?.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      stream.getTracks().forEach((track) => track.stop());
-      videoRef.current.srcObject = null;
-    }
+  // Cleanup function for when component unmounts
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      // Cleanup video stream if it exists
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, []);
+
+  // Function to handle the start button click
+  const handleStart = () => {
+    setStage("loading");
+    loadModels();
   };
 
-  // load the models when the component mounts
-  useEffect(() => {
-    loadModels();
-    return cleanup;
-  }, []);
+  // Reference to store the media stream for cleanup
+  const streamRef = useRef<MediaStream | null>(null);
 
   // load face detection and expression recognition models.
   const loadModels = async () => {
-    const MODEL_URL = "/models";
-    await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-    await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
-    await startVideo();
+    try {
+      // Ensure models path is correct
+      const MODEL_URL =
+        process.env.NODE_ENV === "production" ? "/models" : "/models";
+      console.log("Loading models from:", MODEL_URL);
+      await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+      await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
+      await startVideo();
+    } catch (error) {
+      console.error("Error loading models:", error);
+      setStage("permission-error");
+    }
   };
 
   // Add new function to verify webcam
@@ -163,6 +176,7 @@ export default function ExpressionSequence({ onSuccess }: Props) {
       canvas.width = 640;
       canvas.height = 480;
       canvasRef.current = canvas;
+
     }
   };
 
@@ -221,6 +235,7 @@ export default function ExpressionSequence({ onSuccess }: Props) {
   const processFrame = async () => {
     if (!videoRef.current || !canvasRef.current) return;
 
+
     // Check for timeout
     const elapsedTime = Date.now() - startTimeRef.current;
     if (elapsedTime >= 20000) {
@@ -269,6 +284,7 @@ export default function ExpressionSequence({ onSuccess }: Props) {
       setHoldProgress(0);
       return;
     }
+
     // map from expression to confidence score
     const expressionsDetected = detections.expressions as unknown as {
       [key: string]: number;
@@ -311,19 +327,21 @@ export default function ExpressionSequence({ onSuccess }: Props) {
       }
     }
 
+
     const targetExpression = sequenceRef.current[currentIndexRef.current];
     const confidence = expressionsDetected[targetExpression];
-
-    let target = 0.5;
+    console.log(confidence);
+    // if top expression matches target expression and with high enough confidence
+    //if (expression === targetExpression && confidence > 0.5) {
+    let target = 0.5; // default target confidence
+    // set target confidence based on the target expression
     // happy and neutral are easier to hold, sad is harder, surprised/fearful/angry are hardest
     if (targetExpression == "happy" || targetExpression == "neutral") {
-      target = 0.4;
+      target = 0.5;
     } else if (targetExpression == "sad") {
+      target = 0.4;
+    } else if (targetExpression == "surprised" || targetExpression == "angry") {
       target = 0.3;
-    } else if (targetExpression == "surprised") {
-      target = 0.2;
-    } else if (targetExpression == "angry") {
-      target = 0.1;
     }
     if (confidence > target) {
       if (!holdStartTimeRef.current) {
@@ -343,8 +361,7 @@ export default function ExpressionSequence({ onSuccess }: Props) {
         if (nextIndex >= sequenceRef.current.length) {
           // all expressions done
           setStage("success");
-          cleanup();
-          onSuccess(false);
+          onSuccess();
           return;
         } else {
           // move onto the next expression
@@ -362,178 +379,234 @@ export default function ExpressionSequence({ onSuccess }: Props) {
     }
   };
 
+  // Retry function for permission errors
+  const handleRetry = () => {
+    setStage("loading");
+    // Cleanup any existing streams
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+
+    // Reset state
+    holdStartTimeRef.current = null;
+    setHoldProgress(0);
+
+    // Try loading again
+    setTimeout(loadModels, 500);
+  };
+
+  // Effect to ensure video is initialized when in expression stage
+  useEffect(() => {
+    if (
+      stage === "expression" &&
+      videoRef.current &&
+      streamRef.current &&
+      videoRef.current.srcObject !== streamRef.current
+    ) {
+      console.log("Initializing video from effect hook");
+      videoRef.current.srcObject = streamRef.current;
+      videoRef.current.play().catch((err) => {
+        console.error("Error playing video from effect:", err);
+      });
+    }
+  }, [stage]);
+
   return (
-    <div style={{ textAlign: "center", padding: "20px" }}>
-      {stage === "loading" && (
-        <p role="status" aria-live="polite">
-          Loading facial recognition models...
-        </p>
+    <div className="flex flex-col items-center justify-center w-full max-w-md mx-auto">
+      {stage === "initial" && (
+        <div className="text-center w-full">
+          <h3 className="text-lg font-medium mb-2 text-center">
+            Facial Expression Verification
+          </h3>
+          <p className="text-sm text-gray-600 dark:text-gray-300 mb-4 text-center">
+            Complete a sequence of facial expressions to verify you're human.
+          </p>
+          <button
+            onClick={handleStart}
+            className="bg-primary-500 hover:bg-primary-600 text-white py-2 px-6 rounded-md transition-colors min-w-[160px]"
+            aria-label="Start facial expression challenge"
+          >
+            Start
+          </button>
+        </div>
       )}
 
-      {stage === "expression" && !webcamVerified && (
-        <div role="alert" aria-live="assertive">
-          <p style={{ color: "red" }}>Verifying webcam...</p>
+      {stage === "loading" && (
+        <div className="py-10 text-center" aria-live="polite">
+
+          <div
+            className="w-12 h-12 border-t-2 border-blue-500 rounded-full animate-spin mx-auto mb-4"
+            role="status"
+            aria-label="Loading facial recognition models"
+          ></div>
+          <p className="text-lg">Loading facial recognition models...</p>
+        </div>
+      )}
+
+      {stage === "permission-error" && (
+        <div
+          className="bg-red-50 dark:bg-red-900 p-4 rounded-md text-center"
+          aria-live="assertive"
+        >
+          <div className="text-red-500 mb-2">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-12 w-12 mx-auto"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
+            </svg>
+          </div>
+          <h3 className="text-lg font-medium mb-2 text-red-700 dark:text-red-300">
+            Camera Access Required
+          </h3>
+          <p className="text-sm text-red-600 dark:text-red-400 mb-4">
+            Please allow camera access to use the facial expression
+            verification. Your camera is used only for verification and no
+            images are stored.
+          </p>
+          <button
+            onClick={handleRetry}
+            className="bg-red-600 hover:bg-red-700 text-white py-2 px-6 rounded-md transition-colors"
+            aria-label="Try again with camera access"
+          >
+            Try Again
+          </button>
         </div>
       )}
 
       {stage === "expression" && (
-        <>
-          <div
-            style={{ textAlign: "center" }}
-            role="region"
-            aria-label="Facial expression challenge"
-          >
-            <p
-              style={{ fontSize: "24px", marginBottom: "12px" }}
-              role="heading"
-              aria-level={2}
+        <div className="flex flex-col items-center w-full">
+          <div className="text-center mb-4">
+            <h2
+              className="text-xl font-medium mb-2"
+              id="expression-instruction"
             >
               Match this expression:
-            </p>
-            <div>
-              <div
-                style={{
-                  lineHeight: "1",
-                  marginBottom: "12px",
-                  textTransform: "capitalize",
-                }}
-                role="status"
-                aria-live="polite"
-                aria-label={`Target expression: ${
-                  sequenceRef.current[currentIndexRef.current]
-                }`}
-              >
-                <span style={{ fontSize: "48px" }} aria-hidden="true">
+            </h2>
+            <div
+              className="bg-gray-800 text-white py-3 px-6 rounded-lg inline-block"
+              aria-live="polite"
+              aria-labelledby="expression-instruction"
+            >
+              <div className="flex items-center justify-center space-x-3">
+                <span className="text-5xl" aria-hidden="true">
                   {currentTargetEmoji}
                 </span>
-                <span style={{ fontSize: "24px" }} aria-hidden="true">
+                <span className="text-xl capitalize">
                   {sequenceRef.current[currentIndexRef.current]}
                 </span>
               </div>
             </div>
           </div>
-          <div role="region" aria-label="Webcam view">
+
+          {/* Video container */}
+          <div className="relative w-full max-w-md rounded-lg overflow-hidden shadow-lg bg-gray-100">
             <video
               ref={videoRef}
               autoPlay
+              playsInline
               muted
-              width={400}
-              height={300}
-              style={{ borderRadius: "8px" }}
-              aria-label="Webcam feed"
-              role="img"
-              aria-describedby="webcam-description"
-            />
-            <div id="webcam-description" className="sr-only">
-              Your webcam feed is being used to detect your facial expressions.
-              Make sure your face is clearly visible in the frame.
-            </div>
-          </div>
-          <div
-            style={{
-              width: "400px",
-              height: "10px",
-              backgroundColor: "#eee",
-              margin: "10px auto",
-              borderRadius: "5px",
-            }}
-            role="progressbar"
-            aria-valuenow={holdProgress}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-label={`Hold progress: ${Math.round(holdProgress)}%`}
-            aria-describedby="progress-description"
-          >
-            <div
+              onLoadedMetadata={() => console.log("Video metadata loaded")}
+              onCanPlay={() => console.log("Video can now play")}
               style={{
-                width: `${holdProgress}%`,
-                height: "100%",
-                backgroundColor: "#4caf50",
-                borderRadius: "5px",
-                transition: "width 100ms linear",
+                width: "100%",
+                height: "300px",
+                objectFit: "cover",
+                backgroundColor: "#f0f0f0",
               }}
+              className="rounded-lg"
+              aria-label="Your camera view for facial expression detection"
             />
-            <div id="progress-description" className="sr-only">
-              Hold the required facial expression until the progress bar fills
-              completely.
+
+            {/* Progress bar positioned directly below the video */}
+            <div
+              className="mt-3 w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700 overflow-hidden"
+              role="progressbar"
+              aria-valuenow={holdProgress}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label={`Expression hold progress: ${Math.round(
+                holdProgress
+              )}%`}
+            >
+              <div
+                className="bg-green-600 h-2.5 rounded-full transition-all duration-100"
+                style={{ width: `${holdProgress}%` }}
+              />
             </div>
           </div>
-          <p
-            style={{
-              fontSize: "20px",
-              fontWeight: "bold",
-              marginTop: "12px",
-              color: "var(--foreground)",
-            }}
-            role="status"
-            aria-live="polite"
-            aria-label={`Expression ${currentExpressionIndex + 1} of ${
-              sequenceRef.current.length
-            }`}
-          >
-            <span aria-hidden="true">
+
+          <div className="mt-4 text-center">
+            <p className="text-lg font-medium mb-2" aria-live="polite">
               Expression{" "}
-              <span style={{ color: "#4caf50" }}>
+              <span className="text-green-600 font-bold">
                 {currentExpressionIndex + 1}
               </span>{" "}
               of {sequenceRef.current.length}
-            </span>
-          </p>
-          <button
-            onClick={() => {
-              if (skipsLeft > 0) {
-                let newExpr: keyof typeof expressionEmojis;
-                const currentExpr =
-                  sequenceRef.current[currentIndexRef.current];
-                skippedExpressionRef.current.add(currentExpr);
+            </p>
 
-                do {
-                  newExpr =
-                    expressions[Math.floor(Math.random() * expressions.length)];
-                } while (skippedExpressionRef.current.has(newExpr));
+            <button
+              onClick={() => {
+                if (skipsLeft > 0) {
+                  let newExpr: keyof typeof expressionEmojis;
+                  const currentExpr =
+                    sequenceRef.current[currentIndexRef.current];
+                  skippedExpressionRef.current.add(currentExpr); // Mark the current as skipped
 
-                sequenceRef.current[currentIndexRef.current] = newExpr;
-                setCurrentTargetEmoji(expressionEmojis[newExpr]);
-                holdStartTimeRef.current = null;
-                setHoldProgress(0);
-                setSkipsLeft((prev) => prev - 1);
+                  do {
+                    newExpr =
+                      expressions[
+                        Math.floor(Math.random() * expressions.length)
+                      ];
+                  } while (skippedExpressionRef.current.has(newExpr)); // Avoid skipped ones
+
+                  sequenceRef.current[currentIndexRef.current] = newExpr;
+                  setCurrentTargetEmoji(expressionEmojis[newExpr]);
+                  holdStartTimeRef.current = null;
+                  setHoldProgress(0);
+                  setSkipsLeft((prev) => prev - 1);
+                }
+              }}
+              disabled={skipsLeft <= 0}
+              aria-label={
+                skipsLeft > 0
+                  ? `Skip this expression (${skipsLeft} skips left)`
+                  : "No skips left"
               }
-            }}
-            disabled={skipsLeft <= 0}
-            style={{
-              marginTop: "10px",
-              padding: "8px 16px",
-              fontSize: "16px",
-              borderRadius: "6px",
-              border: "none",
-              backgroundColor: skipsLeft > 0 ? "#ccc" : "#888",
-              color: skipsLeft > 0 ? "#000" : "#444",
-              cursor: skipsLeft > 0 ? "pointer" : "not-allowed",
-            }}
-            aria-label={`Skip expression (${skipsLeft} remaining)`}
-            aria-disabled={skipsLeft <= 0}
-            aria-describedby="skip-description"
-          >
-            <span aria-hidden="true">Skip ({skipsLeft} left)</span>
-            <div id="skip-description" className="sr-only">
-              Skip the current expression if it's too difficult. Limited skips
-              available.
-            </div>
-          </button>
-        </>
-      )}
-
-      {stage === "success" && (
-        <div role="status" aria-live="polite" aria-label="Challenge completed">
-          <p aria-hidden="true">🎉 You completed the sequence!</p>
+              className={`mt-2 px-4 py-2 rounded-md transition-colors ${
+                skipsLeft > 0
+                  ? "bg-gray-200 hover:bg-gray-300 text-gray-800"
+                  : "bg-gray-100 text-gray-400 cursor-not-allowed"
+              }`}
+            >
+              Skip ({skipsLeft} left)
+            </button>
+          </div>
         </div>
       )}
 
-      {stage === "timeout" && (
-        <div role="status" aria-live="polite" aria-label="Challenge timed out">
-          <p aria-hidden="true">⏰ Time's up! Please try again.</p>
+      {stage === "success" && (
+        <div className="text-center py-10" aria-live="polite">
+          <div className="text-5xl mb-4" aria-hidden="true">
+            🎉
+          </div>
+          <h2 className="text-2xl font-bold text-green-600 mb-2">Success!</h2>
+          <p className="text-lg">You completed the expression sequence!</p>
         </div>
       )}
     </div>
   );
 }
+
+// Default export for compatibility
+export default ExpressionSequence;

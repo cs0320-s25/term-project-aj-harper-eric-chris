@@ -1,21 +1,15 @@
-"use client";
-
 import React, { useState, useEffect, useRef } from "react";
-import {
-  generateAudioChallenge,
-  getAudioTone,
-  processAudio,
-  verifyAudioResponse,
-} from "../../lib/audioCaptchaApi";
+import PitchVisualizer from "./PitchVisualizer";
+import { defaultToneDetector, DetectionResult } from "../../lib/toneDetector";
 
 interface AudioCaptchaProps {
   onSuccess: () => void;
 }
 
-const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
+export function AudioCaptcha({ onSuccess }: AudioCaptchaProps) {
   // State for challenge data
   const [challengeId, setChallengeId] = useState<string>("");
-  const [toneSequence, setToneSequence] = useState<number[]>([]);
+  const [targetFrequency, setTargetFrequency] = useState<number>(0);
   const [currentToneIndex, setCurrentToneIndex] = useState(0);
 
   // State for microphone and audio context
@@ -27,27 +21,47 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
 
   // State for challenge progress
   const [stage, setStage] = useState<
-    "initial" | "demo" | "recording" | "analyzing" | "success" | "failure"
+    | "initial"
+    | "demo"
+    | "recording"
+    | "analyzing"
+    | "success"
+    | "failure"
+    | "bot-detected"
+    | "permission-error"
   >("initial");
 
+  // Additional state for error messages
+  const [failureMessage, setFailureMessage] = useState<string>("");
+  const [botDetectionReason, setBotDetectionReason] = useState<string>("");
+
+  // Tone detection results
+  const [detectionResult, setDetectionResult] = useState<DetectionResult>({
+    frequency: 0,
+    amplitude: 0,
+    confidenceScore: 0,
+    isBotLike: false,
+  });
+
   // Debug information
-  const [showDebug, setShowDebug] = useState(true);
-  const [userFrequency, setUserFrequency] = useState<number>(0);
-  const [userAmplitude, setUserAmplitude] = useState<number>(0);
-  const [confidenceScore, setConfidenceScore] = useState<number>(0);
-  const [lastProcessedAt, setLastProcessedAt] = useState<number>(0);
+  const [recordingTimeLeft, setRecordingTimeLeft] = useState<number>(0);
 
   // Refs
   const oscillatorRef = useRef<OscillatorNode | null>(null);
   const gainNodeRef = useRef<GainNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const animationRef = useRef<number | null>(null);
   const audioDataRef = useRef<Float32Array | null>(null);
   const processingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const matchStartTimeRef = useRef<number | null>(null);
   const micSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const recordedFrequenciesRef = useRef<number[]>([]);
+  const recordedResultsRef = useRef<DetectionResult[]>([]);
   const isRecordingRef = useRef(false);
+  const successTriggeredRef = useRef(false); // Track if success has been triggered to prevent auto-pass to next round
+
+  // Add a new state for initial stage
+  const [showChallenge, setShowChallenge] = useState(false);
 
   // Initialize on mount
   useEffect(() => {
@@ -62,10 +76,10 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
 
   // Effect to continuously process audio when microphone is ready
   useEffect(() => {
-    if (microphoneReady && challengeId) {
+    if (microphoneReady && stage === "recording") {
       console.log("Starting continuous audio processing");
-      // Start continuous audio processing (every 100ms for more responsiveness)
-      processingIntervalRef.current = setInterval(processAudioData, 100);
+      // Process audio at a reasonable interval
+      processingIntervalRef.current = setInterval(processAudioData, 50);
 
       // Return cleanup function
       return () => {
@@ -75,20 +89,50 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
         }
       };
     }
-  }, [microphoneReady, challengeId]);
+  }, [microphoneReady, stage]);
+
+  // Effect to track when the user is maintaining the target pitch
+  useEffect(() => {
+    // Only check during recording
+    if (!isRecording) {
+      matchStartTimeRef.current = null;
+      return;
+    }
+
+    // Check if current frequency matches the target
+    if (
+      defaultToneDetector.isFrequencyMatch(
+        detectionResult.frequency,
+        targetFrequency
+      )
+    ) {
+      // If this is the start of a matching period, record the time
+      if (matchStartTimeRef.current === null) {
+        matchStartTimeRef.current = Date.now();
+      }
+      // If they've been matching for 2 seconds, end recording successfully
+      else if (Date.now() - matchStartTimeRef.current >= 2000) {
+        console.log("User maintained pitch for 2 seconds - ending recording");
+        stopRecording(true);
+      }
+    } else {
+      // Reset the match timer if they go off pitch
+      matchStartTimeRef.current = null;
+    }
+  }, [detectionResult.frequency, isRecording, targetFrequency]);
 
   // Initialize a new challenge
   const initChallenge = async () => {
     try {
-      // Generate a new challenge
-      const challenge = await generateAudioChallenge();
-      setChallengeId(challenge.challengeId);
+      // Generate a random challenge ID
+      const randomId = Math.random().toString(36).substring(2, 15);
+      setChallengeId(randomId);
 
-      // Get the tone data
-      const toneData = await getAudioTone(challenge.challengeId);
-      setToneSequence([toneData.frequency]);
+      // Generate a random tone frequency
+      const randomFrequency = defaultToneDetector.generateRandomTone();
+      setTargetFrequency(randomFrequency);
 
-      console.log(`Generated tone with frequency: ${toneData.frequency}Hz`);
+      console.log(`Generated challenge with frequency: ${randomFrequency}Hz`);
     } catch (error) {
       console.error("Error initializing challenge:", error);
       setStage("failure");
@@ -97,27 +141,25 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
 
   // Function to play a tone
   const playTone = (frequency: number, duration = 1000) => {
-    if (!audioContext) {
-      const newAudioContext = new (window.AudioContext ||
-        (window as any).webkitAudioContext)();
-      setAudioContext(newAudioContext);
+    try {
+      // Create a new temporary audio context for playing tones if needed
+      const ctx =
+        audioContext ||
+        new (window.AudioContext || (window as any).webkitAudioContext)();
+      if (!audioContext) {
+        setAudioContext(ctx);
+      }
 
-      const oscillator = newAudioContext.createOscillator();
+      const oscillator = ctx.createOscillator();
       oscillator.type = "sine";
-      oscillator.frequency.setValueAtTime(
-        frequency,
-        newAudioContext.currentTime
-      );
+      oscillator.frequency.setValueAtTime(frequency, ctx.currentTime);
 
-      const gainNode = newAudioContext.createGain();
-      gainNode.gain.setValueAtTime(0, newAudioContext.currentTime);
-      gainNode.gain.linearRampToValueAtTime(
-        0.5,
-        newAudioContext.currentTime + 0.1
-      );
+      const gainNode = ctx.createGain();
+      gainNode.gain.setValueAtTime(0, ctx.currentTime);
+      gainNode.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 0.1);
 
       oscillator.connect(gainNode);
-      gainNode.connect(newAudioContext.destination);
+      gainNode.connect(ctx.destination);
 
       oscillator.start();
       gainNodeRef.current = gainNode;
@@ -126,49 +168,18 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
       // Schedule the tone to stop
       gainNode.gain.setValueAtTime(
         0.5,
-        newAudioContext.currentTime + duration / 1000 - 0.1
+        ctx.currentTime + duration / 1000 - 0.1
       );
       gainNode.gain.linearRampToValueAtTime(
         0,
-        newAudioContext.currentTime + duration / 1000
+        ctx.currentTime + duration / 1000
       );
 
       setTimeout(() => {
         stopTone();
       }, duration);
-    } else {
-      // Reuse existing audio context
-      const oscillator = audioContext.createOscillator();
-      oscillator.type = "sine";
-      oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
-
-      const gainNode = audioContext.createGain();
-      gainNode.gain.setValueAtTime(0, audioContext.currentTime);
-      gainNode.gain.linearRampToValueAtTime(
-        0.5,
-        audioContext.currentTime + 0.1
-      );
-
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-
-      oscillator.start();
-      gainNodeRef.current = gainNode;
-      oscillatorRef.current = oscillator;
-
-      // Schedule the tone to stop
-      gainNode.gain.setValueAtTime(
-        0.5,
-        audioContext.currentTime + duration / 1000 - 0.1
-      );
-      gainNode.gain.linearRampToValueAtTime(
-        0,
-        audioContext.currentTime + duration / 1000
-      );
-
-      setTimeout(() => {
-        stopTone();
-      }, duration);
+    } catch (error) {
+      console.error("Error playing tone:", error);
     }
   };
 
@@ -216,38 +227,44 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
       streamRef.current = null;
     }
 
-    // Cancel animations
-    if (animationRef.current) {
-      console.log("Canceling animation frame");
-      cancelAnimationFrame(animationRef.current);
-      animationRef.current = null;
-    }
-
     // Clear processing intervals
     if (processingIntervalRef.current) {
       clearInterval(processingIntervalRef.current);
       processingIntervalRef.current = null;
     }
 
+    // Clear recording timer
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+
     // Reset audio state
     setMicrophoneReady(false);
     setAudioAnalyser(null);
+    setDetectionResult({
+      frequency: 0,
+      amplitude: 0,
+      confidenceScore: 0,
+      isBotLike: false,
+    });
+    setRecordingTimeLeft(0);
+    matchStartTimeRef.current = null;
 
     // Do not reset audio context to avoid "The AudioContext was not allowed to start" errors on some browsers
     // setAudioContext(null);
   };
 
-  // Play the demo tone sequence
+  // Play the demo tone sequence - this no longer initializes the microphone
   const playDemoSequence = () => {
     setStage("demo");
     setCurrentToneIndex(0);
 
-    // Play each tone in sequence
-    if (toneSequence.length > 0) {
-      playTone(toneSequence[0], 2000);
-    }
+    // Play the target tone
+    playTone(targetFrequency, 2000);
 
-    // After demo finishes, prompt user to record
+    // After demo finishes, set the stage to recording so user can click record button
+    // but don't start recording or initialize mic yet
     setTimeout(() => {
       setStage("recording");
     }, 2500);
@@ -300,54 +317,74 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
       // Mark microphone as ready after setup is complete
       setMicrophoneReady(true);
 
-      // Start drawing waveform
-      drawWaveform();
-
       console.log("Microphone initialized successfully");
       return true;
     } catch (error) {
       console.error("Error accessing microphone:", error);
       setMicrophoneAccess(false);
-      setStage("failure");
+      setStage("permission-error");
       return false;
     }
   };
 
-  // Process audio data and send to server
-  const processAudioData = async () => {
-    if (
-      !audioAnalyser ||
-      !audioDataRef.current ||
-      !challengeId ||
-      !microphoneReady
-    ) {
+  // Process audio data using our toneDetector
+  const processAudioData = () => {
+    if (!audioAnalyser || !audioDataRef.current || !microphoneReady) {
       return;
     }
 
     try {
-      // Rate limit processing to avoid overwhelming the server
-      const now = Date.now();
-      if (now - lastProcessedAt < 80) {
-        // Max ~12 requests per second
-        return;
-      }
-      setLastProcessedAt(now);
-
       // Get audio data from analyzer
       audioAnalyser.getFloatTimeDomainData(audioDataRef.current);
 
-      // Send to server for processing
-      const result = await processAudio(challengeId, audioDataRef.current);
+      // Process the audio data with our tone detector
+      const result = defaultToneDetector.processAudioData(audioDataRef.current);
 
-      setUserFrequency(result.frequency);
-      setUserAmplitude(result.amplitude);
-      setConfidenceScore(result.confidenceScore);
+      // Apply a low-pass filter to the frequency to reduce jitter and create smoother visualization
+      // Lowered amplitude threshold to detect quieter humming (0.01 -> 0.003)
+      if (result.amplitude > 0.003) {
+        // Update state with the result - implement a simple smoothing mechanism
+        setDetectionResult((prev) => {
+          // If we have a new valid frequency, use weighted average with previous value
+          // to create smoother transitions (70% new value, 30% old value)
+          const smoothedFrequency =
+            result.frequency > 0
+              ? 0.7 * result.frequency +
+                0.3 * (prev.frequency || result.frequency)
+              : prev.frequency;
 
-      // Store every userFrequency during recording
+          return {
+            frequency: smoothedFrequency,
+            amplitude: result.amplitude,
+            confidenceScore: result.confidenceScore,
+            isBotLike: result.isBotLike,
+            botLikeReason: result.botLikeReason,
+          };
+        });
+      } else {
+        // Reset frequency to 0 if amplitude is too low (likely silence)
+        setDetectionResult((prev) => ({
+          ...prev,
+          frequency: 0,
+          amplitude: result.amplitude,
+          confidenceScore: 0,
+        }));
+      }
+
+      // During recording, store all detection results
       if (isRecordingRef.current && result.frequency > 0) {
         recordedFrequenciesRef.current.push(result.frequency);
-        // Optionally log
-        // console.log("Stored userFrequency:", result.frequency);
+        recordedResultsRef.current.push(result);
+
+        // If bot-like behavior is detected, stop recording and mark as failure
+        if (result.isBotLike) {
+          console.log("Bot-like behavior detected:", result.botLikeReason);
+          setBotDetectionReason(
+            result.botLikeReason || "Synthetic audio detected"
+          );
+          stopRecording(false);
+          setStage("bot-detected");
+        }
       }
     } catch (error) {
       console.error("Error processing audio data:", error);
@@ -355,141 +392,143 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
     }
   };
 
-  // Draw a waveform visualization
-  const drawWaveform = () => {
-    if (!canvasRef.current) return;
-
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    // Set up canvas for drawing
-    ctx.fillStyle = "#1e1e2f"; // Dark blue background
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    const draw = () => {
-      // Clear the canvas
-      ctx.fillStyle = "#1e1e2f";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      // Draw time grid
-      ctx.strokeStyle = "#333344";
-      ctx.lineWidth = 1;
-
-      const gridSize = 30;
-      for (let x = 0; x < canvas.width; x += gridSize) {
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, canvas.height);
-        ctx.stroke();
+  // Start recording - now also initializes microphone
+  const startRecording = async () => {
+    // Make sure microphone is initialized before recording
+    if (!microphoneReady) {
+      const micInitialized = await initMicrophone();
+      if (!micInitialized) {
+        return; // Failed to initialize microphone
       }
 
-      for (let y = 0; y < canvas.height; y += gridSize) {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(canvas.width, y);
-        ctx.stroke();
-      }
+      // Give a small delay after mic initialization before starting to record
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
 
-      // Draw waveform
-      ctx.strokeStyle = isRecording ? "#4CAF50" : "#2196F3";
-      ctx.lineWidth = 3;
-      ctx.beginPath();
+    // Reset recording state
+    recordedFrequenciesRef.current = [];
+    recordedResultsRef.current = [];
+    matchStartTimeRef.current = null;
+    setIsRecording(true);
 
-      // Always draw waveform data when microphone is ready
-      if (audioAnalyser && audioDataRef.current && microphoneReady) {
-        // Get the latest audio data
-        audioAnalyser.getFloatTimeDomainData(audioDataRef.current);
+    // Set up a countdown from 10 seconds
+    const maxRecordingTime = 10; // seconds
+    setRecordingTimeLeft(maxRecordingTime);
 
-        const bufferLength = audioDataRef.current.length;
-        const centerY = canvas.height / 2;
-        const sliceWidth = canvas.width / bufferLength;
+    // Start countdown timer
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+    }
 
-        // Enhance the waveform visualization
-        const amplificationFactor = isRecording ? 3.0 : 2.0; // Amplify the waveform
-
-        ctx.moveTo(0, centerY);
-
-        for (let i = 0; i < bufferLength; i += 4) {
-          // Skip some samples for performance
-          const x = i * sliceWidth;
-          const v = audioDataRef.current[i] * amplificationFactor;
-          const y = centerY + (v * canvas.height) / 2; // Scale to fit canvas
-
-          if (i === 0) {
-            ctx.moveTo(x, y);
-          } else {
-            ctx.lineTo(x, y);
-          }
+    recordingTimerRef.current = setInterval(() => {
+      setRecordingTimeLeft((prev) => {
+        const newTime = prev - 1;
+        if (newTime <= 0) {
+          // Time's up, stop recording
+          stopRecording(false);
+          return 0;
         }
-      } else {
-        // Draw simulated waveform when not recording
-        const centerY = canvas.height / 2;
-        const amplitude = 20;
-        const step = 5;
-        const time = Date.now() / 1000;
+        return newTime;
+      });
+    }, 1000);
 
-        ctx.moveTo(0, centerY);
-
-        for (let x = 0; x < canvas.width; x += step) {
-          // Create a simpler waveform
-          const y = centerY + Math.sin(x * 0.01 + time * 2) * amplitude;
-
-          ctx.lineTo(x, y);
-        }
+    // Set a maximum recording time of 10 seconds
+    setTimeout(() => {
+      if (isRecordingRef.current) {
+        console.log("Maximum recording time reached");
+        stopRecording(false);
       }
-
-      ctx.stroke();
-
-      // Draw frequency indicator on the waveform during recording
-      if (isRecording && userFrequency > 0) {
-        ctx.fillStyle = "#ffffff";
-        ctx.font = "16px monospace";
-        ctx.fillText(`Detected: ${Math.round(userFrequency)} Hz`, 10, 25);
-      }
-
-      // Continue animation
-      animationRef.current = requestAnimationFrame(draw);
-    };
-
-    draw();
+    }, maxRecordingTime * 1000);
   };
 
-  // Start recording
-  const startRecording = () => {
-    setIsRecording(true);
-    recordedFrequenciesRef.current = [];
-    setTimeout(() => {
-      setIsRecording(false);
-      // Stop interval when recording ends
-      if (processingIntervalRef.current) {
-        clearInterval(processingIntervalRef.current);
-        processingIntervalRef.current = null;
-      }
-      analyzeRecording();
-    }, 2000);
+  // Stop recording and proceed to analysis
+  const stopRecording = (matchAchieved: boolean) => {
+    // Clear recording timer
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+
+    setIsRecording(false);
+    setRecordingTimeLeft(0);
+
+    // If recording was stopped because match was achieved, we can use that information
+    if (matchAchieved) {
+      console.log("Recording stopped - user achieved sustained match");
+    }
+
+    // Proceed to analysis
+    analyzeRecording(matchAchieved);
   };
 
   // Analyze the recording
-  const analyzeRecording = async () => {
+  const analyzeRecording = (matchAchieved: boolean) => {
     setStage("analyzing");
+
     try {
       console.log("All recorded frequencies:", recordedFrequenciesRef.current);
-      const result = await verifyAudioResponse(challengeId, recordedFrequenciesRef.current);
-      if (result.success) {
+
+      // Check for bot-like behavior in the entire recording
+      const botResults = recordedResultsRef.current.filter((r) => r.isBotLike);
+      if (botResults.length > 0) {
+        // Bot detected
+        console.log("Bot detected:", botResults[0].botLikeReason);
+        setBotDetectionReason(
+          botResults[0].botLikeReason || "Synthetic audio detected"
+        );
+        setStage("bot-detected");
+        return;
+      }
+
+      // If we already know the match was achieved, go straight to success
+      if (matchAchieved) {
+        // Prevent auto-pass to next round by checking if success was already triggered
+        if (successTriggeredRef.current) return;
+
+        successTriggeredRef.current = true;
+        setStage("success");
+        onSuccess();
+        return;
+      }
+
+      // Otherwise, do a more thorough analysis of the recording
+      // Check if there are at least 3 consecutive matching frequencies
+      let consecutiveMatches = 0;
+      let maxConsecutiveMatches = 0;
+
+      for (const freq of recordedFrequenciesRef.current) {
+        if (defaultToneDetector.isFrequencyMatch(freq, targetFrequency)) {
+          consecutiveMatches++;
+          maxConsecutiveMatches = Math.max(
+            maxConsecutiveMatches,
+            consecutiveMatches
+          );
+        } else {
+          consecutiveMatches = 0;
+        }
+      }
+
+      // Need at least 3 consecutive matching samples for a success
+      if (maxConsecutiveMatches >= 3) {
+        // Prevent auto-pass to next round by checking if success was already triggered
+        if (successTriggeredRef.current) return;
+
+        successTriggeredRef.current = true;
         setStage("success");
         onSuccess();
       } else {
+        setFailureMessage(
+          "We couldn't match your tone with the expected frequency"
+        );
         setStage("failure");
       }
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Error during verification:", error);
+      setFailureMessage("An error occurred during verification");
       setStage("failure");
     } finally {
-      // Always stop the processing interval after verification
-      if (processingIntervalRef.current) {
-        clearInterval(processingIntervalRef.current);
-        processingIntervalRef.current = null;
-      }
+      // Always stop the processing interval and clean up audio after verification
+      cleanupAudio();
     }
   };
 
@@ -498,203 +537,317 @@ const AudioCaptcha: React.FC<AudioCaptchaProps> = ({ onSuccess }) => {
     // Clean up
     cleanupAudio();
 
-    // Reset state
+    // Reset all state
     setStage("initial");
     setCurrentToneIndex(0);
-    setUserFrequency(0);
-    setUserAmplitude(0);
-    setConfidenceScore(0);
+    setDetectionResult({
+      frequency: 0,
+      amplitude: 0,
+      confidenceScore: 0,
+      isBotLike: false,
+    });
     setIsRecording(false);
+    setRecordingTimeLeft(0);
+    setFailureMessage("");
+    setBotDetectionReason("");
 
-    // Initialize a new challenge
-    initChallenge();
+    // Reset success triggered flag
+    successTriggeredRef.current = false;
+
+    // Clear any stored recordings
+    recordedFrequenciesRef.current = [];
+    recordedResultsRef.current = [];
+    matchStartTimeRef.current = null;
+
+    // Generate a completely new challenge with a new target frequency
+    // This ensures it doesn't reuse the previous challenge data
+    setTimeout(() => {
+      initChallenge();
+    }, 100);
   };
 
-  // Start button handler
+  // Start button handler - no longer initializes microphone
   const handleStart = async () => {
-    if (await initMicrophone()) {
-      // Start processing audio as soon as Start is clicked
-      processingIntervalRef.current = setInterval(processAudioData, 100);
-      playDemoSequence();
-    }
+    setShowChallenge(true);
+    playDemoSequence();
   };
 
-  // Record button handler
-  const handleRecord = () => {
-    startRecording();
+  // Record button handler - now handles microphone initialization
+  const handleRecord = async () => {
+    await startRecording();
   };
 
-  // Toggle debug display
-  const toggleDebug = () => {
-    setShowDebug(!showDebug);
-  };
-
-  // Determine if we should show debug info based on microphone state
-  const shouldShowDebug = showDebug && (stage !== "initial" || microphoneReady);
-
+  // Update the recording ref when state changes
   useEffect(() => {
     isRecordingRef.current = isRecording;
   }, [isRecording]);
 
   return (
-    <div className="w-full">
-      <div className="mb-4 overflow-hidden rounded-lg aspect-[2/1] bg-gray-900 relative">
-        <canvas
-          ref={canvasRef}
-          className="w-full h-full"
-          width={600}
-          height={300}
-        />
+    <div className="flex flex-col items-center justify-center w-full max-w-md mx-auto">
+      {!showChallenge ? (
+        <div className="text-center w-full">
+          <h3 className="text-lg font-medium mb-2 text-center">
+            Audio Tone Mimicry
+          </h3>
+          <p className="text-sm text-gray-600 dark:text-gray-300 mb-4 text-center">
+            Listen to a tone and then mimic it with your voice.
+          </p>
+          <button
+            onClick={handleStart}
+            className="bg-primary-500 hover:bg-primary-600 text-white py-2 px-6 rounded-md transition-colors min-w-[160px]"
+            aria-label="Start audio challenge"
+          >
+            Start
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className="mb-4 overflow-hidden rounded-lg aspect-[2/1] bg-gray-900 relative w-full">
+            {/* Use the PitchVisualizer component */}
+            <div className="w-full h-full">
+              <PitchVisualizer
+                userFrequency={detectionResult.frequency}
+                targetFrequency={targetFrequency || 0}
+                isRecording={isRecording}
+                stage={stage}
+              />
+            </div>
 
-        {/* Recording indicator */}
-        {isRecording && (
-          <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded-full text-xs animate-pulse">
-            Recording...
-          </div>
-        )}
-
-        {/* Frequency display - always show when debug is enabled */}
-        {shouldShowDebug && (
-          <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white p-2 rounded text-sm font-mono">
-            {toneSequence.length > 0 && <div>Target: {toneSequence[0]} Hz</div>}
-            {/* Always show user frequency when microphone is ready */}
-            {microphoneReady && (
-              <>
-                <div>User: {Math.round(userFrequency)} Hz</div>
-                <div>Amplitude: {Math.round(userAmplitude)}</div>
-                {/* Show confidence when recording or analyzing */}
-                {(stage === "recording" || stage === "analyzing") && (
-                  <div>Confidence: {(confidenceScore * 100).toFixed(1)}%</div>
-                )}
-              </>
+            {/* Recording indicator with countdown */}
+            {isRecording && (
+              <div
+                className="absolute top-2 right-2 bg-red-500 text-white px-3 py-1 rounded-full text-xs flex items-center"
+                aria-live="polite"
+              >
+                <span className="animate-pulse mr-1" aria-hidden="true">
+                  ●
+                </span>
+                <span>
+                  Recording{" "}
+                  {recordingTimeLeft > 0 ? `(${recordingTimeLeft}s)` : ""}
+                </span>
+              </div>
             )}
           </div>
-        )}
-      </div>
 
-      {/* Instructions and controls */}
-      <div className="space-y-4">
-        {stage === "initial" && (
-          <div>
-            <h3 className="text-lg font-medium mb-2 text-center">
-              Audio Tone Mimicry
-            </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-300 mb-4 text-center">
-              Listen to a tone and then mimic it with your voice.
-            </p>
-            <button
-              onClick={handleStart}
-              className="w-full bg-primary-500 hover:bg-primary-600 text-white py-2 px-4 rounded-md transition-colors"
-            >
-              Start
-            </button>
-          </div>
-        )}
-
-        {stage === "demo" && (
-          <div className="bg-blue-50 dark:bg-blue-900 p-4 rounded-md">
-            <p className="text-sm text-blue-700 dark:text-blue-300">
-              <span className="font-semibold">Listen carefully:</span> You will
-              need to mimic this tone with your voice.
-            </p>
-          </div>
-        )}
-
-        {stage === "recording" && (
-          <div>
-            <div className="bg-green-50 dark:bg-green-900 p-4 rounded-md mb-4">
-              <p className="text-sm text-green-700 dark:text-green-300">
-                <span className="font-semibold">Your turn:</span> Now try to
-                mimic the tone you just heard with your voice.
-              </p>
-            </div>
-            <button
-              onClick={handleRecord}
-              className={`w-full ${
-                isRecording
-                  ? "bg-red-500 hover:bg-red-600"
-                  : "bg-primary-500 hover:bg-primary-600"
-              } text-white py-2 px-4 rounded-md transition-colors`}
-              disabled={isRecording}
-            >
-              {isRecording ? "Recording..." : "Start Recording"}
-            </button>
-          </div>
-        )}
-
-        {stage === "analyzing" && (
-          <div className="text-center py-4">
-            <div className="w-12 h-12 border-t-2 border-blue-500 rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-gray-600 dark:text-gray-300">
-              Analyzing your tone...
-            </p>
-          </div>
-        )}
-
-        {stage === "success" && (
-          <div className="bg-green-50 dark:bg-green-900 p-4 rounded-md text-center">
-            <div className="text-green-500 mb-2">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-12 w-12 mx-auto"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
+          {/* Instructions and controls */}
+          <div className="space-y-4">
+            {stage === "demo" && (
+              <div
+                className="bg-blue-50 dark:bg-blue-900 p-4 rounded-md"
+                aria-live="polite"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-            </div>
-            <h3 className="text-lg font-medium mb-2 text-green-700 dark:text-green-300">
-              Verification Successful!
-            </h3>
-            <p className="text-sm text-green-600 dark:text-green-400">
-              You have successfully completed the audio tone challenge.
-            </p>
-          </div>
-        )}
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  <span className="font-semibold">Listen carefully:</span> You
+                  will need to mimic this tone with your voice.
+                </p>
+              </div>
+            )}
 
-        {stage === "failure" && (
-          <div className="bg-red-50 dark:bg-red-900 p-4 rounded-md text-center">
-            <div className="text-red-500 mb-2">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-12 w-12 mx-auto"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
+            {stage === "recording" && (
+              <div>
+                <div
+                  className="bg-green-50 dark:bg-green-900 p-4 rounded-md mb-4"
+                  aria-live="polite"
+                >
+                  <p className="text-sm text-green-700 dark:text-green-300">
+                    <span className="font-semibold">Your turn:</span> Mimic the
+                    tone you just heard. Maintain the correct pitch for 2
+                    seconds to complete the challenge.
+                  </p>
+                </div>
+                <button
+                  onClick={handleRecord}
+                  className={`w-full ${
+                    isRecording
+                      ? "bg-red-500 hover:bg-red-600"
+                      : microphoneReady
+                      ? "bg-blue-500 hover:bg-blue-600"
+                      : "bg-primary-500 hover:bg-primary-600"
+                  } text-white py-2 px-4 rounded-md transition-colors`}
+                  disabled={isRecording}
+                  aria-label={
+                    isRecording
+                      ? `Recording in progress (${recordingTimeLeft}s left)`
+                      : microphoneReady
+                      ? "Record your voice again"
+                      : "Start recording your voice"
+                  }
+                >
+                  {isRecording
+                    ? `Recording (${recordingTimeLeft}s)`
+                    : microphoneReady
+                    ? "Record Again"
+                    : "Start Recording"}
+                </button>
+              </div>
+            )}
+
+            {stage === "analyzing" && (
+              <div className="text-center py-4" aria-live="polite">
+                <div
+                  className="w-12 h-12 border-t-2 border-blue-500 rounded-full animate-spin mx-auto mb-4"
+                  role="status"
+                  aria-label="Analyzing your tone"
+                ></div>
+                <p className="text-gray-600 dark:text-gray-300">
+                  Analyzing your tone...
+                </p>
+              </div>
+            )}
+
+            {stage === "success" && (
+              <div
+                className="bg-green-50 dark:bg-green-900 p-4 rounded-md text-center"
+                aria-live="polite"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                />
-              </svg>
-            </div>
-            <h3 className="text-lg font-medium mb-2 text-red-700 dark:text-red-300">
-              Verification Failed
-            </h3>
-            <p className="text-sm text-red-600 dark:text-red-400 mb-4">
-              {microphoneAccess
-                ? "We couldn't match your tone with the expected frequency."
-                : "We couldn't access your microphone."}
-            </p>
-            <button
-              onClick={handleRetry}
-              className="bg-red-600 hover:bg-red-700 text-white py-2 px-6 rounded-md transition-colors"
-            >
-              Try Again
-            </button>
+                <div className="text-green-500 mb-2">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-12 w-12 mx-auto"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-medium mb-2 text-green-700 dark:text-green-300">
+                  Verification Successful!
+                </h3>
+                <p className="text-sm text-green-600 dark:text-green-400">
+                  You have successfully completed the audio tone challenge.
+                </p>
+              </div>
+            )}
+
+            {stage === "failure" && (
+              <div
+                className="bg-red-50 dark:bg-red-900 p-4 rounded-md text-center"
+                aria-live="assertive"
+              >
+                <div className="text-red-500 mb-2">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-12 w-12 mx-auto"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                    />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-medium mb-2 text-red-700 dark:text-red-300">
+                  Verification Failed
+                </h3>
+                <p className="text-sm text-red-600 dark:text-red-400 mb-4">
+                  {failureMessage ||
+                    (microphoneAccess
+                      ? "We couldn't match your tone with the expected frequency."
+                      : "We couldn't access your microphone.")}
+                </p>
+                <button
+                  onClick={handleRetry}
+                  className="bg-red-600 hover:bg-red-700 text-white py-2 px-6 rounded-md transition-colors"
+                  aria-label="Try the audio challenge again"
+                >
+                  Try Again
+                </button>
+              </div>
+            )}
+
+            {stage === "permission-error" && (
+              <div
+                className="bg-red-50 dark:bg-red-900 p-4 rounded-md text-center"
+                aria-live="assertive"
+              >
+                <div className="text-red-500 mb-2">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-12 w-12 mx-auto"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                    />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-medium mb-2 text-red-700 dark:text-red-300">
+                  Microphone Access Required
+                </h3>
+                <p className="text-sm text-red-600 dark:text-red-400 mb-4">
+                  Please allow microphone access to use the audio tone
+                  verification. Your microphone is used only for verification
+                  and no audio is stored.
+                </p>
+                <button
+                  onClick={handleRetry}
+                  className="bg-red-600 hover:bg-red-700 text-white py-2 px-6 rounded-md transition-colors"
+                  aria-label="Try again with microphone access"
+                >
+                  Try Again
+                </button>
+              </div>
+            )}
+
+            {stage === "bot-detected" && (
+              <div
+                className="bg-red-50 dark:bg-red-900 p-4 rounded-md text-center"
+                aria-live="assertive"
+              >
+                <div className="text-red-500 mb-2">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-12 w-12 mx-auto"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"
+                    />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-medium mb-2 text-red-700 dark:text-red-300">
+                  Verification Failed
+                </h3>
+                <p className="text-sm text-red-600 dark:text-red-400 mb-4">
+                  Synthetic/computer-generated audio detected.
+                </p>
+                <p className="text-xs text-red-600 dark:text-red-400 mb-2">
+                  Human verification required. Please reload the page to try
+                  again.
+                </p>
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </>
+      )}
     </div>
   );
-};
+}
 
+// Default export for compatibility
 export default AudioCaptcha;
