@@ -10,9 +10,11 @@
   "files": [
     "dist",
     "README.md",
-    "scripts/postinstall.cjs"
+    "scripts/postinstall.cjs",
+    "scripts/setup.js"
   ],
   "scripts": {
+    "setup": "node ./scripts/setup.js",
     "build": "rollup -c rollup.config.cjs",
     "build:types": "tsc --emitDeclarationOnly",
     "build:models": "node scripts/copyModels.cjs",

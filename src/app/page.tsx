@@ -63,7 +63,7 @@ export default function Home() {
 
   const handleCaptchaSuccess = () => {
     console.log("CAPTCHA verified successfully!");
-    alert("CAPTCHA verified successfully!");
+    // Custom alert is shown through component UI instead of browser alert
     setCaptchaVerified(true);
   };
 
