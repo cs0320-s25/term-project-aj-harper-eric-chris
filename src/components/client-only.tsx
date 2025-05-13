@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState, ReactNode } from "react";
+import * as React from "react";
+import { useEffect, useState } from "react";
 
 interface ClientOnlyProps {
-  children: ReactNode;
-  fallback?: ReactNode;
+  children: React.ReactNode;
+  fallback?: React.ReactNode;
 }
 
 /**
@@ -12,16 +13,19 @@ interface ClientOnlyProps {
  * preventing hydration errors with libraries like TensorFlow.js that are not
  * compatible with server-side rendering.
  */
-export function ClientOnly({ children, fallback = null }: ClientOnlyProps) {
-  const [hasMounted, setHasMounted] = useState(false);
+export default function ClientOnly({
+  children,
+  fallback = null,
+}: ClientOnlyProps) {
+  const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
-    setHasMounted(true);
+    setIsClient(true);
   }, []);
 
-  if (!hasMounted) {
-    return <>{fallback}</>;
+  if (!isClient) {
+    return React.createElement(React.Fragment, null, fallback);
   }
 
-  return <>{children}</>;
+  return React.createElement(React.Fragment, null, children);
 }
