@@ -27,78 +27,75 @@ jest.mock('../components/ui/captcha-container', () => ({
   ),
 }));
 
-describe('Home Page', () => {
-  beforeEach(() => {
-    // Clear all mocks before each test
-    jest.clearAllMocks();
-  });
+beforeEach(() => {
+  jest.clearAllMocks();
+});
 
-  it('renders the main heading and description', () => {
-    render(<Home />);
-    
-    expect(screen.getByText('MimicCaptcha')).toBeInTheDocument();
-    expect(screen.getByText(/A multi-modal CAPTCHA system based on human mimicry capabilities/)).toBeInTheDocument();
-  });
+test('renders the main heading and description', () => {
+  render(<Home />);
+  
+  expect(screen.getByText('MimicCaptcha')).toBeInTheDocument();
+  expect(screen.getByText(/A multi-modal CAPTCHA system based on human mimicry capabilities/)).toBeInTheDocument();
+});
 
-  it('renders both audio and facial captcha tabs', () => {
-    render(<Home />);
-    
-    expect(screen.getByText('Audio Mimicry')).toBeInTheDocument();
-    expect(screen.getByText('Facial Mimicry')).toBeInTheDocument();
-  });
+test('renders both audio and facial captcha tabs', () => {
+  render(<Home />);
+  
+  expect(screen.getByText('Audio Mimicry')).toBeInTheDocument();
+  expect(screen.getByText('Facial Mimicry')).toBeInTheDocument();
+});
 
-  it('shows audio captcha by default', () => {
-    render(<Home />);
-    
-    expect(screen.getByTestId('audio-captcha')).toBeInTheDocument();
-  });
+test('shows audio captcha by default', () => {
+  render(<Home />);
+  
+  expect(screen.getByTestId('audio-captcha')).toBeInTheDocument();
+});
 
-  it('switches to facial captcha when facial tab is clicked', async () => {
-    render(<Home />);
-    
-    const facialTab = screen.getByText('Facial Mimicry');
-    fireEvent.click(facialTab);
-    
-    await waitFor(() => {
-      expect(screen.getByTestId('mocked-facial-captcha')).toBeInTheDocument();
-    });
+test('switches to facial captcha when facial tab is clicked', async () => {
+  render(<Home />);
+  
+  const facialTab = screen.getByText('Facial Mimicry');
+  fireEvent.click(facialTab);
+  
+  await waitFor(() => {
+    expect(screen.getByTestId('mocked-facial-captcha')).toBeInTheDocument();
   });
+});
 
-  it('shows success message when captcha is verified', async () => {
-    render(<Home />);
-    
-    const verifyButton = screen.getByText('Verify Audio');
-    fireEvent.click(verifyButton);
-    
-    await waitFor(() => {
-      expect(screen.getByText('Verification Successful!')).toBeInTheDocument();
-    });
+test('shows success message when captcha is verified', async () => {
+  render(<Home />);
+  
+  const verifyButton = screen.getByText('Verify Audio');
+  fireEvent.click(verifyButton);
+  
+  await waitFor(() => {
+    expect(screen.getByText('Verification Successful!')).toBeInTheDocument();
   });
+});
 
-  it('allows trying again after successful verification', async () => {
-    render(<Home />);
-    
-    // First verify
-    const verifyButton = screen.getByText('Verify Audio');
-    fireEvent.click(verifyButton);
-    
-    // Wait for success message
-    await waitFor(() => {
-      expect(screen.getByText('Verification Successful!')).toBeInTheDocument();
-    });
-    
-    // Click try again
-    const tryAgainButton = screen.getByText('Try Again');
-    fireEvent.click(tryAgainButton);
-    
-    // Should show captcha again
-    expect(screen.getByTestId('audio-captcha')).toBeInTheDocument();
+test('allows trying again after successful verification', async () => {
+  render(<Home />);
+  
+  // First verify
+  const verifyButton = screen.getByText('Verify Audio');
+  fireEvent.click(verifyButton);
+  
+  // Wait for success message
+  await waitFor(() => {
+    expect(screen.getByText('Verification Successful!')).toBeInTheDocument();
   });
+  
+  // Click try again
+  const tryAgainButton = screen.getByText('Try Again');
+  fireEvent.click(tryAgainButton);
+  
+  // Should show captcha again
+  expect(screen.getByTestId('audio-captcha')).toBeInTheDocument();
+});
 
-  it('renders footer with current year', () => {
-    render(<Home />);
-    
-    const currentYear = new Date().getFullYear();
-    expect(screen.getByText(`© ${currentYear} MimicCaptcha. Privacy-first human verification.`)).toBeInTheDocument();
-  });
+test('renders footer with current year', () => {
+  render(<Home />);
+  
+  const currentYear = new Date().getFullYear();
+  expect(screen.getByText(`© ${currentYear} MimicCaptcha. Privacy-first human verification.`)).toBeInTheDocument();
 });
