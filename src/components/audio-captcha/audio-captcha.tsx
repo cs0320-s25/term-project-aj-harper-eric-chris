@@ -664,7 +664,7 @@ export function AudioCaptcha({ onSuccess }: AudioCaptchaProps) {
                       ? "bg-red-500 hover:bg-red-600"
                       : microphoneReady
                       ? "bg-blue-500 hover:bg-blue-600"
-                      : "bg-primary-500 hover:bg-primary-600"
+                      : "bg-blue-500 hover:bg-blue-600"
                   } text-white py-2 px-4 rounded-md transition-colors`}
                   disabled={isRecording}
                   aria-label={

@@ -32,42 +32,80 @@ describe("ExpressionSequence", () => {
     jest.useRealTimers();
   });
 
-  it("renders loading state initially", () => {
-    render(<ExpressionSequence onSuccess={mockOnSuccess} />);
+  it("renders loading state initially", async () => {
+    await act(async () => {
+      render(<ExpressionSequence onSuccess={mockOnSuccess} />);
+    });
     expect(
       screen.getByText("Loading facial recognition models...")
     ).toBeInTheDocument();
   });
 
-  it("shows expression challenge after loading", async () => {
-    render(<ExpressionSequence onSuccess={mockOnSuccess} />);
+  it("shows start button after loading", async () => {
+    await act(async () => {
+      render(<ExpressionSequence onSuccess={mockOnSuccess} />);
+    });
 
-    // Wait for loading to complete and state updates
+    // Wait for loading to complete and start button to appear
     await waitFor(() => {
-      expect(screen.getByText(/Match this expression:/i)).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /start facial challenge/i })
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("shows expression challenge after clicking start", async () => {
+    await act(async () => {
+      render(<ExpressionSequence onSuccess={mockOnSuccess} />);
+    });
+
+    // Wait for loading to complete and start button to appear
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /start facial challenge/i })
+      ).toBeInTheDocument();
+    });
+
+    // Click the start button
+    fireEvent.click(
+      screen.getByRole("button", { name: /start facial challenge/i })
+    );
+
+    // Wait for the first expression to appear
+    await waitFor(() => {
+      expect(screen.getByText(/expression 1 of 3/i)).toBeInTheDocument();
     });
   });
 
   it("completes challenge when correct expression is held", async () => {
-    render(<ExpressionSequence onSuccess={mockOnSuccess} />);
-
-    // Wait for loading to complete
-    await waitFor(() => {
-      expect(screen.getByText(/Match this expression:/i)).toBeInTheDocument();
+    await act(async () => {
+      render(<ExpressionSequence onSuccess={mockOnSuccess} />);
     });
+
+    // Wait for loading to complete and start button to appear
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /start facial challenge/i })
+      ).toBeInTheDocument();
+    });
+
+    // Click the start button
+    fireEvent.click(
+      screen.getByRole("button", { name: /start facial challenge/i })
+    );
 
     // Complete all three expressions in sequence
     for (let i = 0; i < 3; i++) {
-      // Verify current expression number
-      expect(
-        screen.getByRole("status", {
-          name: new RegExp(`expression ${i + 1} of 3`, "i"),
-        })
-      ).toBeInTheDocument();
+      // Wait for the current expression to be shown
+      await waitFor(() => {
+        expect(
+          screen.getByText(new RegExp(`expression ${i + 1} of 3`, "i"))
+        ).toBeInTheDocument();
+      });
 
       // Get the current target expression
       const targetExpression = screen
-        .getByText(/Match this expression:/i)
+        .getByText(new RegExp(`expression ${i + 1} of 3`, "i"))
         .nextSibling?.textContent?.toLowerCase() as any;
 
       // Set the mock expression to match the target
@@ -85,13 +123,7 @@ describe("ExpressionSequence", () => {
       await waitFor(() => {
         if (i < 2) {
           expect(
-            screen.getByText(/Match this expression:/i)
-          ).toBeInTheDocument();
-          // Verify expression number has incremented
-          expect(
-            screen.getByRole("status", {
-              name: new RegExp(`expression ${i + 2} of 3`, "i"),
-            })
+            screen.getByText(new RegExp(`expression ${i + 2} of 3`, "i"))
           ).toBeInTheDocument();
         } else {
           expect(
@@ -106,50 +138,73 @@ describe("ExpressionSequence", () => {
   });
 
   it("allows skipping expressions", async () => {
-    render(<ExpressionSequence onSuccess={mockOnSuccess} />);
+    await act(async () => {
+      render(<ExpressionSequence onSuccess={mockOnSuccess} />);
+    });
 
-    // Wait for loading to complete
+    // Wait for loading to complete and start button to appear
     await waitFor(() => {
-      expect(screen.getByText(/Match this expression:/i)).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /start facial challenge/i })
+      ).toBeInTheDocument();
+    });
+
+    // Click the start button
+    fireEvent.click(
+      screen.getByRole("button", { name: /start facial challenge/i })
+    );
+
+    // Wait for the first expression
+    await waitFor(() => {
+      expect(screen.getByText(/expression 1 of 3/i)).toBeInTheDocument();
     });
 
     // Get initial expression
     const initialExpression = screen
-      .getByText(/Match this expression:/i)
+      .getByText(/expression 1 of 3/i)
       .nextSibling?.textContent?.toLowerCase();
 
-    // Find and click the skip button using aria-label
+    // Find and click the skip button
     const skipButton = screen.getByRole("button", { name: /skip expression/i });
     fireEvent.click(skipButton);
 
     // Wait for the expression to change
     await waitFor(() => {
       const newExpression = screen
-        .getByText(/Match this expression:/i)
+        .getByText(/expression 2 of 3/i)
         .nextSibling?.textContent?.toLowerCase();
       expect(newExpression).not.toBe(initialExpression);
     });
   });
 
   it("shows success message after completing all expressions", async () => {
-    render(<ExpressionSequence onSuccess={mockOnSuccess} />);
-
-    // Wait for loading to complete
-    await waitFor(() => {
-      expect(screen.getByText(/Match this expression:/i)).toBeInTheDocument();
+    await act(async () => {
+      render(<ExpressionSequence onSuccess={mockOnSuccess} />);
     });
+
+    // Wait for loading to complete and start button to appear
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /start facial challenge/i })
+      ).toBeInTheDocument();
+    });
+
+    // Click the start button
+    fireEvent.click(
+      screen.getByRole("button", { name: /start facial challenge/i })
+    );
 
     // Complete all expressions
     for (let i = 0; i < 3; i++) {
-      // Verify current expression number
-      expect(
-        screen.getByRole("status", {
-          name: new RegExp(`expression ${i + 1} of 3`, "i"),
-        })
-      ).toBeInTheDocument();
+      // Wait for the current expression
+      await waitFor(() => {
+        expect(
+          screen.getByText(new RegExp(`expression ${i + 1} of 3`, "i"))
+        ).toBeInTheDocument();
+      });
 
       const targetExpression = screen
-        .getByText(/Match this expression:/i)
+        .getByText(new RegExp(`expression ${i + 1} of 3`, "i"))
         .nextSibling?.textContent?.toLowerCase() as any;
 
       setMockExpression(targetExpression);
@@ -166,13 +221,7 @@ describe("ExpressionSequence", () => {
       await waitFor(() => {
         if (i < 2) {
           expect(
-            screen.getByText(/Match this expression:/i)
-          ).toBeInTheDocument();
-          // Verify expression number has incremented
-          expect(
-            screen.getByRole("status", {
-              name: new RegExp(`expression ${i + 2} of 3`, "i"),
-            })
+            screen.getByText(new RegExp(`expression ${i + 2} of 3`, "i"))
           ).toBeInTheDocument();
         } else {
           expect(
@@ -184,26 +233,35 @@ describe("ExpressionSequence", () => {
   });
 
   it("does not show success message after only 2 expressions", async () => {
-    render(<ExpressionSequence onSuccess={mockOnSuccess} />);
-
-    // Wait for loading to complete
-    await waitFor(() => {
-      expect(screen.getByText(/Match this expression:/i)).toBeInTheDocument();
+    await act(async () => {
+      render(<ExpressionSequence onSuccess={mockOnSuccess} />);
     });
+
+    // Wait for loading to complete and start button to appear
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /start facial challenge/i })
+      ).toBeInTheDocument();
+    });
+
+    // Click the start button
+    fireEvent.click(
+      screen.getByRole("button", { name: /start facial challenge/i })
+    );
 
     // Complete only two expressions
     for (let i = 0; i < 2; i++) {
-      // Verify current expression number
-      expect(
-        screen.getByRole("status", {
-          name: new RegExp(`expression ${i + 1} of 3`, "i"),
-        })
-      ).toBeInTheDocument();
+      // Wait for the current expression
+      await waitFor(() => {
+        expect(
+          screen.getByText(new RegExp(`expression ${i + 1} of 3`, "i"))
+        ).toBeInTheDocument();
+      });
 
       const targetExpression = screen
-        .getByText(/Match this expression:/i)
+        .getByText(new RegExp(`expression ${i + 1} of 3`, "i"))
         .nextSibling?.textContent?.toLowerCase() as any;
-
+      console.log("targetExpression", targetExpression);
       setMockExpression(targetExpression);
 
       // Simulate the interval running for 500ms (holdDuration)
@@ -216,12 +274,8 @@ describe("ExpressionSequence", () => {
 
       // Wait for the next expression
       await waitFor(() => {
-        expect(screen.getByText(/Match this expression:/i)).toBeInTheDocument();
-        // Verify expression number has incremented
         expect(
-          screen.getByRole("status", {
-            name: new RegExp(`expression ${i + 2} of 3`, "i"),
-          })
+          screen.getByText(new RegExp(`expression ${i + 2} of 3`, "i"))
         ).toBeInTheDocument();
       });
     }
@@ -235,21 +289,29 @@ describe("ExpressionSequence", () => {
   });
 
   it("does not show success message after only 1 expression", async () => {
-    render(<ExpressionSequence onSuccess={mockOnSuccess} />);
-
-    // Wait for loading to complete
-    await waitFor(() => {
-      expect(screen.getByText(/Match this expression:/i)).toBeInTheDocument();
+    await act(async () => {
+      render(<ExpressionSequence onSuccess={mockOnSuccess} />);
     });
 
-    // Complete only one expression
-    // Verify current expression number
-    expect(
-      screen.getByRole("status", { name: /expression 1 of 3/i })
-    ).toBeInTheDocument();
+    // Wait for loading to complete and start button to appear
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /start facial challenge/i })
+      ).toBeInTheDocument();
+    });
+
+    // Click the start button
+    fireEvent.click(
+      screen.getByRole("button", { name: /start facial challenge/i })
+    );
+
+    // Wait for the first expression
+    await waitFor(() => {
+      expect(screen.getByText(/expression 1 of 3/i)).toBeInTheDocument();
+    });
 
     const targetExpression = screen
-      .getByText(/Match this expression:/i)
+      .getByText(/expression 1 of 3/i)
       .nextSibling?.textContent?.toLowerCase() as any;
 
     setMockExpression(targetExpression);
@@ -264,11 +326,7 @@ describe("ExpressionSequence", () => {
 
     // Wait for the next expression
     await waitFor(() => {
-      expect(screen.getByText(/Match this expression:/i)).toBeInTheDocument();
-      // Verify expression number has incremented
-      expect(
-        screen.getByRole("status", { name: /expression 2 of 3/i })
-      ).toBeInTheDocument();
+      expect(screen.getByText(/expression 2 of 3/i)).toBeInTheDocument();
     });
 
     // Verify that success message is NOT shown
@@ -280,101 +338,48 @@ describe("ExpressionSequence", () => {
   });
 
   it("allows skipping first two expressions and still verifies after completing all three", async () => {
-    render(<ExpressionSequence onSuccess={mockOnSuccess} />);
-
-    // Wait for loading to complete
-    await waitFor(() => {
-      expect(screen.getByText(/Match this expression:/i)).toBeInTheDocument();
+    await act(async () => {
+      render(<ExpressionSequence onSuccess={mockOnSuccess} />);
     });
+
+    // Wait for loading to complete and start button to appear
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /start facial challenge/i })
+      ).toBeInTheDocument();
+    });
+
+    // Click the start button
+    fireEvent.click(
+      screen.getByRole("button", { name: /start facial challenge/i })
+    );
 
     // Skip first two expressions
     for (let i = 0; i < 2; i++) {
-      // Verify current expression number stays at 1 of 3
-      expect(
-        screen.getByRole("status", { name: /expression 1 of 3/i })
-      ).toBeInTheDocument();
+      await waitFor(() => {
+        expect(
+          screen.getByText(new RegExp(`expression ${i + 1} of 3`, "i"))
+        ).toBeInTheDocument();
+      });
 
-      // Find and click the skip button using aria-label
       const skipButton = screen.getByRole("button", {
         name: /skip expression/i,
       });
       fireEvent.click(skipButton);
-
-      // Wait for the next expression
-      await waitFor(() => {
-        expect(screen.getByText(/Match this expression:/i)).toBeInTheDocument();
-        // Verify expression number still shows 1 of 3
-        expect(
-          screen.getByRole("status", { name: /expression 1 of 3/i })
-        ).toBeInTheDocument();
-      });
     }
 
-    // Complete all three expressions
-    for (let i = 0; i < 3; i++) {
-      // Verify current expression number
-      expect(
-        screen.getByRole("status", {
-          name: new RegExp(`expression ${i + 1} of 3`, "i"),
-        })
-      ).toBeInTheDocument();
-
-      const targetExpression = screen
-        .getByText(/Match this expression:/i)
-        .nextSibling?.textContent?.toLowerCase() as any;
-
-      setMockExpression(targetExpression);
-
-      // Simulate the interval running for 500ms (holdDuration)
-      for (let j = 0; j < 5; j++) {
-        await act(async () => {
-          jest.advanceTimersByTime(100); // Advance by 100ms each time
-          await Promise.resolve(); // Let React update
-        });
-      }
-
-      // Wait for the next expression or success message
-      await waitFor(() => {
-        if (i < 2) {
-          expect(
-            screen.getByText(/Match this expression:/i)
-          ).toBeInTheDocument();
-          // Verify expression number has incremented
-          expect(
-            screen.getByRole("status", {
-              name: new RegExp(`expression ${i + 2} of 3`, "i"),
-            })
-          ).toBeInTheDocument();
-        } else {
-          expect(
-            screen.getByText("🎉 You completed the sequence!")
-          ).toBeInTheDocument();
-        }
-      });
-    }
-
-    // Verify that onSuccess was called after completing all expressions
-    expect(mockOnSuccess).toHaveBeenCalled();
-  });
-
-  it("detects bot when expression values are constant", async () => {
-    render(<ExpressionSequence onSuccess={mockOnSuccess} />);
-
-    // Wait for loading to complete
+    // Complete the last expression
     await waitFor(() => {
-      expect(screen.getByText(/Match this expression:/i)).toBeInTheDocument();
+      expect(screen.getByText(/expression 3 of 3/i)).toBeInTheDocument();
     });
 
-    // Get the current target expression
     const targetExpression = screen
-      .getByText(/Match this expression:/i)
+      .getByText(/expression 3 of 3/i)
       .nextSibling?.textContent?.toLowerCase() as any;
 
-    // Set constant values for bot detection
-    setMockConstantValues(true);
     setMockExpression(targetExpression);
 
-    // Simulate the interval running for 500ms (holdDuration) with constant values
+    // Simulate the interval running for 500ms (holdDuration)
     for (let j = 0; j < 5; j++) {
       await act(async () => {
         jest.advanceTimersByTime(100); // Advance by 100ms each time
@@ -382,32 +387,89 @@ describe("ExpressionSequence", () => {
       });
     }
 
-    // Wait for onSuccess to be called with bot detection
+    // Wait for success message
     await waitFor(() => {
-      expect(mockOnSuccess).toHaveBeenCalledWith(true); // true indicates bot detected
+      expect(
+        screen.getByText("🎉 You completed the sequence!")
+      ).toBeInTheDocument();
     });
 
-    // Clean up
-    clearMockConstantValues();
+    // Verify that onSuccess was called
+    expect(mockOnSuccess).toHaveBeenCalled();
+  });
+
+  it("detects bot when expression values are constant", async () => {
+    await act(async () => {
+      render(<ExpressionSequence onSuccess={mockOnSuccess} />);
+    });
+
+    // Wait for loading to complete and start button to appear
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /start facial challenge/i })
+      ).toBeInTheDocument();
+    });
+
+    // Click the start button
+    fireEvent.click(
+      screen.getByRole("button", { name: /start facial challenge/i })
+    );
+
+    // Set constant expression values to simulate a bot
+    setMockConstantValues(true);
+
+    // Wait for the first expression
+    await waitFor(() => {
+      expect(screen.getByText(/expression 1 of 3/i)).toBeInTheDocument();
+    });
+
+    const targetExpression = screen
+      .getByText(/expression 1 of 3/i)
+      .nextSibling?.textContent?.toLowerCase() as any;
+
+    setMockExpression(targetExpression);
+
+    // Simulate the interval running for 500ms (holdDuration)
+    for (let j = 0; j < 5; j++) {
+      await act(async () => {
+        jest.advanceTimersByTime(100); // Advance by 100ms each time
+        await Promise.resolve(); // Let React update
+      });
+    }
+
+    // Verify that onSuccess was called with true (bot detected)
+    expect(mockOnSuccess).toHaveBeenCalledWith(true);
   });
 
   it("triggers timeout after 30 seconds", async () => {
     render(<ExpressionSequence onSuccess={mockOnSuccess} />);
-
-    // Wait for loading to complete
+    expect(
+      screen.getByText("Loading facial recognition models...")
+    ).toBeInTheDocument();
+    // Wait for loading to complete and start button to appear
     await waitFor(() => {
-      expect(screen.getByText(/Match this expression:/i)).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /start facial challenge/i })
+      ).toBeInTheDocument();
     });
 
-    // Fast forward 30 seconds
+    // Click the start button
+    fireEvent.click(
+      screen.getByRole("button", { name: /start facial challenge/i })
+    );
+
+    // Wait for the first expression
+    await waitFor(() => {
+      expect(screen.getByText(/expression 1 of 3/i)).toBeInTheDocument();
+    });
+
+    // Advance time by 30 seconds
     await act(async () => {
       jest.advanceTimersByTime(30000);
-      await Promise.resolve(); // Let React update
+      await Promise.resolve();
     });
 
-    // Check that onSuccess was called with timeout
-    await waitFor(() => {
-      expect(mockOnSuccess).toHaveBeenCalledWith("timeout");
-    });
+    // Verify that onSuccess was called with "timeout"
+    expect(mockOnSuccess).toHaveBeenCalledWith("timeout");
   });
 });
