@@ -322,11 +322,11 @@ export const ExpressionSequence = ({ onSuccess }: Props) => {
     if (targetExpression == "happy" || targetExpression == "neutral") {
       target = 0.4;
     } else if (targetExpression == "sad") {
-      target = 0.3;
+      target = 0.25;
     } else if (targetExpression == "surprised") {
-      target = 0.2;
+      target = 0.1;
     } else if (targetExpression == "angry") {
-      target = 0.05;
+      target = 0.025;
     }
     if (confidence > target) {
       if (!holdStartTimeRef.current) {
