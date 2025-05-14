@@ -1,19 +1,18 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { ExpressionSequence } from "./components/facial-captcha/facial-captcha";
 import { AudioCaptcha } from "./components/audio-captcha/audio-captcha";
 import { ErrorBoundary } from "react-error-boundary";
-
 enum CaptchaType {
   AUDIO = "audio",
   FACIAL = "facial",
   NONE = "none",
 }
-
 /**
  * Main App component that replaces the Next.js page structure
  * This still allows you to use the original components with the new setup
  */
 const App: React.FC = () => {
+  
   const [tabView, setTabView] = useState<
     "original" | "individual" | "form-demo"
   >("original");
@@ -34,6 +33,7 @@ const App: React.FC = () => {
   const [submissionStatus, setSubmissionStatus] = useState<
     "idle" | "success" | "error" | "timeout" | "suspicious"
   >("idle");
+
 
   const handleCaptchaSuccess = (status: boolean | "timeout") => {
     if (status === "timeout") {
@@ -181,7 +181,10 @@ const App: React.FC = () => {
                   You have successfully verified that you are human.
                 </p>
                 <button
-                  onClick={() => setCaptchaVerified(false)}
+                  onClick={() => {
+                    setCaptchaVerified(false);
+                    setSubmissionStatus("idle");
+                  }}
                   className="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-md transition-colors"
                 >
                   Try Again

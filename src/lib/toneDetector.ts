@@ -78,7 +78,7 @@ export class ToneDetector {
         isBotLike: false,
       };
     }
-
+    
     // Detect the fundamental frequency using YIN algorithm
     const { frequency, confidence } = this.detectPitchYIN(audioData);
 
@@ -324,7 +324,6 @@ export class ToneDetector {
           recentValidFreqs.reduce((sum, f) => sum + Math.pow(f - mean, 2), 0) /
           recentValidFreqs.length;
         const cv = Math.sqrt(variance) / mean; // Coefficient of variation
-
         // Human pitch typically has some micro-variations
         // If variance is extremely low, it might be synthetic
         if (cv < 0.0005 && mean > 150) {

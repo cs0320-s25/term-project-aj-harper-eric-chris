@@ -45,7 +45,6 @@ export function AudioCaptcha({ onSuccess }: AudioCaptchaProps) {
 
   // Debug information
   const [recordingTimeLeft, setRecordingTimeLeft] = useState<number>(0);
-
   // Refs
   const oscillatorRef = useRef<OscillatorNode | null>(null);
   const gainNodeRef = useRef<GainNode | null>(null);
@@ -66,7 +65,6 @@ export function AudioCaptcha({ onSuccess }: AudioCaptchaProps) {
   // Initialize on mount
   useEffect(() => {
     initChallenge();
-
     // Clean up on unmount
     return () => {
       stopTone();
