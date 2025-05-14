@@ -34,10 +34,10 @@ const App: React.FC = () => {
   const [formCaptchaVerified, setFormCaptchaVerified] = useState(false);
   const [showForm, setShowForm] = useState(true);
   const [submissionStatus, setSubmissionStatus] = useState<
-    "idle" | "success" | "error" | "timeout" | "suspicious"
+    "idle" | "success" | "error" | "timeout" | "suspicious" | "failure"
   >("idle");
 
-  const handleCaptchaSuccess = (status: boolean | "timeout") => {
+  const handleCaptchaSuccess = (status: boolean | "timeout" | "failure") => {
     if (status === "timeout") {
       console.log("CAPTCHA timed out!");
       setCaptchaVerified(false);
@@ -46,10 +46,14 @@ const App: React.FC = () => {
       console.log("Bot detected!");
       setCaptchaVerified(false);
       setSubmissionStatus("suspicious");
-    } else {
+    } else if (status === false) {
       console.log("CAPTCHA verified successfully!");
       setCaptchaVerified(true);
       setSubmissionStatus("success");
+    } else {
+      console.log("CAPTCHA failed!");
+      setCaptchaVerified(false);
+      setSubmissionStatus("failure");
     }
   };
 
@@ -267,6 +271,45 @@ const App: React.FC = () => {
                     setSubmissionStatus("idle");
                   }}
                   className="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-md transition-colors"
+                >
+                  Try Again
+                </button>
+              </div>
+            ) : submissionStatus === "failure" ? (
+              <div
+                className="bg-red-50 dark:bg-red-900 p-4 rounded-md text-center"
+                aria-live="assertive"
+              >
+                <div className="text-red-500 mb-2">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-12 w-12 mx-auto"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                    />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-medium mb-2 text-red-700 dark:text-red-300">
+                  Verification Failed
+                </h3>
+                <p className="text-sm text-red-600 dark:text-red-400 mb-4">
+                  We couldn't match your tone with the expected frequency.
+                </p>
+                <button
+                  onClick={() => {
+                    setCaptchaVerified(false);
+                    setSubmissionStatus("idle");
+                  }}
+                  className="bg-red-600 hover:bg-red-700 text-white py-2 px-6 rounded-md transition-colors"
+                  aria-label="Try the audio challenge again"
                 >
                   Try Again
                 </button>

@@ -363,7 +363,7 @@ export class ToneDetector {
         const cv = Math.sqrt(variance) / mean; // Coefficient of variation
         // Human pitch typically has some micro-variations
         // If variance is extremely low, it might be synthetic
-        if (cv < 0.001 && mean > 100) {
+        if (cv < 0.001 && mean > 125) {
           return {
             isBotLike: true,
             botLikeReason: "Unnaturally stable frequency detected",

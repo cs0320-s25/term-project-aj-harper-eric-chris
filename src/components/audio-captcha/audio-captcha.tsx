@@ -3,7 +3,7 @@ import PitchVisualizer from "./PitchVisualizer";
 import { defaultToneDetector, DetectionResult } from "../../lib/toneDetector";
 
 interface AudioCaptchaProps {
-  onSuccess: (status: boolean | "timeout") => void;
+  onSuccess: (status: boolean | "timeout" | "failure") => void;
 }
 
 export function AudioCaptcha({ onSuccess }: AudioCaptchaProps) {
@@ -134,6 +134,7 @@ export function AudioCaptcha({ onSuccess }: AudioCaptchaProps) {
     } catch (error) {
       console.error("Error initializing challenge:", error);
       setStage("failure");
+      onSuccess("failure");
     }
   };
 
@@ -511,7 +512,6 @@ export function AudioCaptcha({ onSuccess }: AudioCaptchaProps) {
       if (maxConsecutiveMatches >= 3) {
         // Prevent auto-pass to next round by checking if success was already triggered
         if (successTriggeredRef.current) return;
-
         successTriggeredRef.current = true;
         setStage("success");
         onSuccess(false);
@@ -520,11 +520,13 @@ export function AudioCaptcha({ onSuccess }: AudioCaptchaProps) {
           "We couldn't match your tone with the expected frequency"
         );
         setStage("failure");
+        onSuccess("failure");
       }
     } catch (error: any) {
       console.error("Error during verification:", error);
       setFailureMessage("An error occurred during verification");
       setStage("failure");
+      onSuccess("failure");
     } finally {
       // Always stop the processing interval and clean up audio after verification
       cleanupAudio();
@@ -726,46 +728,6 @@ export function AudioCaptcha({ onSuccess }: AudioCaptchaProps) {
               </div>
             )}
 
-            {stage === "failure" && (
-              <div
-                className="bg-red-50 dark:bg-red-900 p-4 rounded-md text-center"
-                aria-live="assertive"
-              >
-                <div className="text-red-500 mb-2">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-12 w-12 mx-auto"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    aria-hidden="true"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                    />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-medium mb-2 text-red-700 dark:text-red-300">
-                  Verification Failed
-                </h3>
-                <p className="text-sm text-red-600 dark:text-red-400 mb-4">
-                  {failureMessage ||
-                    (microphoneAccess
-                      ? "We couldn't match your tone with the expected frequency."
-                      : "We couldn't access your microphone.")}
-                </p>
-                <button
-                  onClick={handleRetry}
-                  className="bg-red-600 hover:bg-red-700 text-white py-2 px-6 rounded-md transition-colors"
-                  aria-label="Try the audio challenge again"
-                >
-                  Try Again
-                </button>
-              </div>
-            )}
 
             {stage === "permission-error" && (
               <div
