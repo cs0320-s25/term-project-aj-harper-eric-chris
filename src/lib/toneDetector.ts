@@ -220,7 +220,7 @@ export class ToneDetector {
   public generateRandomTone(): number {
     // Generate a frequency between 200-800 Hz, in a vocal comfortable range
     const min = 220; // Approximately A3
-    const max = 440; // Approximately A4
+    const max = 392; // Approximately A4
     return Math.floor(Math.random() * (max - min + 1)) + min;
   }
 

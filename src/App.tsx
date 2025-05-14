@@ -317,9 +317,9 @@ const App: React.FC = () => {
                 </h2>
                 <p className="text-gray-600 dark:text-dark-700 mb-4">
                   We couldn't verify your response. This might happen if your
-                  camera is lagging, your connection is unstable, or if the
-                  lighting is poor. Please try again with a stable connection
-                  and good lighting.
+                  camera or microphone is lagging, your connection is unstable,
+                  or if the lighting is poor. Please try again with a stable
+                  connection and good lighting/audio.
                 </p>
                 <button
                   onClick={() => {
