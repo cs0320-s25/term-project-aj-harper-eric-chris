@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { AudioCaptcha } from "./audio-captcha/audio-captcha";
-import {ExpressionSequence} from "./facial-captcha/facial-captcha";
+import { ExpressionSequence } from "./facial-captcha/facial-captcha";
 import { ErrorBoundary } from "react-error-boundary";
 
 /**
@@ -10,7 +10,7 @@ export interface MimicCaptchaProps {
   /**
    * Function to call when captcha is successfully completed
    */
-  onSuccess: (status: boolean | "timeout") => void;
+  onSuccess: (status: boolean | "timeout" | "failure") => void;
 
   /**
    * Function to call when captcha fails (max attempts reached)
@@ -128,24 +128,32 @@ export function MimicCaptcha(props: MimicCaptchaProps) {
   const [showingSuccess, setShowingSuccess] = useState(false);
 
   // Handle success from the captcha components
-  const handleCaptchaSuccess = (status: boolean | "timeout") => {
+  const handleCaptchaSuccess = (status: boolean | "timeout" | "failure") => {
+    if (status === "failure") {
+      handleCaptchaFailure();
+      return;
+    }
+
     if (status === "timeout") {
-      console.log("CAPTCHA timed out!");
-      setCaptchaVerified(false);
-    } else if (status === true) {
-      console.log("Bot detected!");
-      setCaptchaVerified(false);
-    } else {
-      setCaptchaVerified(true);
-      if (showSuccessMessage) {
-        setShowingSuccess(true);
-        setTimeout(() => {
-          setShowingSuccess(false);
-          onSuccess(status);
-        }, successMessageDuration);
-      } else {
-        onSuccess(status);
+      // Handle timeout case
+      setAttempts(attempts + 1);
+      if (attempts + 1 >= maxAttempts!) {
+        handleCaptchaFailure();
+        return;
       }
+      return;
+    }
+
+    // Status is true - captcha passed
+    setCaptchaVerified(true);
+    if (showSuccessMessage) {
+      setShowingSuccess(true);
+      setTimeout(() => {
+        setShowingSuccess(false);
+        onSuccess(status);
+      }, successMessageDuration);
+    } else {
+      onSuccess(status);
     }
   };
 

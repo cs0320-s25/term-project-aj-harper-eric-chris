@@ -18,7 +18,7 @@ const expressions: (keyof typeof expressionEmojis)[] = Object.keys(
 const holdDuration = 700; // time the user most hold the expression (.7 second)
 
 type Props = {
-  onSuccess: (status: boolean | "timeout") => void;
+  onSuccess: (status: boolean | "timeout" | "failure") => void;
 };
 
 // Add new types for webcam verification
