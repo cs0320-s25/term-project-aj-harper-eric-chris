@@ -113,7 +113,7 @@ const App: React.FC = () => {
           MimicCaptcha
         </h1>
         <p className="text-gray-600 dark:text-dark-700 max-w-md">
-          A multi-modal CAPTCHA system based on human mimicry capabilities
+          A multimodal CAPTCHA system based on human mimicry capabilities
         </p>
       </header>
       <button
