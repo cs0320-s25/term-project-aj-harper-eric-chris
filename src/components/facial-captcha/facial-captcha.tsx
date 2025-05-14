@@ -28,7 +28,7 @@ type FrameData = {
   faceDetected: boolean;
 };
 
-export function ExpressionSequence({ onSuccess }: Props) {
+export const ExpressionSequence = ({ onSuccess }: Props) => {
   const [skipsLeft, setSkipsLeft] = useState(2); // number of skips the user has
   const videoRef = useRef<HTMLVideoElement>(null); // reference to the video element
   const intervalRef = useRef<number | null>(null); // reference to interval element
@@ -57,7 +57,6 @@ export function ExpressionSequence({ onSuccess }: Props) {
 
   // Helper function to clean up timers and camera
   const cleanup = () => {
-    console.log("Cleaning up...");
     if (intervalRef.current) clearInterval(intervalRef.current);
     if (videoRef.current?.srcObject) {
       const stream = videoRef.current.srcObject as MediaStream;
@@ -219,7 +218,10 @@ export function ExpressionSequence({ onSuccess }: Props) {
 
   // Modify processFrame function
   const processFrame = async () => {
-    if (!videoRef.current || !canvasRef.current) return;
+    if (!videoRef.current || !canvasRef.current) {
+      console.log("No video or canvas ref");
+      return;
+    }
 
     // Check for timeout
     const elapsedTime = Date.now() - startTimeRef.current;
@@ -324,7 +326,7 @@ export function ExpressionSequence({ onSuccess }: Props) {
     } else if (targetExpression == "surprised") {
       target = 0.2;
     } else if (targetExpression == "angry") {
-      target = 0.1;
+      target = 0.05;
     }
     if (confidence > target) {
       if (!holdStartTimeRef.current) {
@@ -660,4 +662,4 @@ export function ExpressionSequence({ onSuccess }: Props) {
       )}
     </div>
   );
-}
+};
