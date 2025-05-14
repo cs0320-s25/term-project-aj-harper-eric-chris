@@ -360,7 +360,7 @@ const App: React.FC = () => {
                   </code>
                 </div>
                 <div className="mt-4">
-                  <AudioCaptcha onSuccess={() => setCaptchaVerified(true)} />
+                  <AudioCaptcha onSuccess={handleCaptchaSuccess} />
                 </div>
               </div>
 

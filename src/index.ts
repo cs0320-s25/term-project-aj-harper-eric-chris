@@ -3,7 +3,6 @@
  *
  * Main components and types exports
  */
-
 // Export main component
 export {
   MimicCaptcha,

@@ -82,7 +82,7 @@ export class ToneDetector {
         isBotLike: false,
       };
     }
-    
+
     // Detect the fundamental frequency using YIN algorithm
     const { frequency, confidence } = this.detectPitchYIN(audioData);
 
@@ -110,15 +110,14 @@ export class ToneDetector {
       ? this.checkForBotBehavior(frequency, amplitude, scaledConfidence)
       : { isBotLike: false };
 
-    if (botCheckResult.isBotLike == true){
+    if (botCheckResult.isBotLike == true) {
       this.replayBuffer.push({
         frequency,
         amplitude,
         confidenceScore: scaledConfidence,
         ...botCheckResult,
         time: Date.now(),
-        }
-      )
+      });
     }
 
     return {
@@ -129,9 +128,17 @@ export class ToneDetector {
     };
   }
 
-  public isReplayed(frequency: number, amplitude: number, confidenceScore: number): boolean {
+  public isReplayed(
+    frequency: number,
+    amplitude: number,
+    confidenceScore: number
+  ): boolean {
     this.replayBuffer.forEach((record) => {
-      if (frequency == record.frequency && amplitude == record.amplitude && confidenceScore == record.confidenceScore){
+      if (
+        frequency == record.frequency &&
+        amplitude == record.amplitude &&
+        confidenceScore == record.confidenceScore
+      ) {
         return true;
       }
     });
@@ -166,7 +173,9 @@ export class ToneDetector {
   public pruneReplayBuffer() {
     const TEN_MINUTES = 10 * 60 * 1000;
     const cutoff = Date.now() - TEN_MINUTES;
-    this.replayBuffer = this.replayBuffer.filter((r) => (r.time ?? 0) >= cutoff);
+    this.replayBuffer = this.replayBuffer.filter(
+      (r) => (r.time ?? 0) >= cutoff
+    );
   }
 
   /**
@@ -330,18 +339,13 @@ export class ToneDetector {
   /**
    * Check for bot-like behavior in audio signals
    */
-  private checkForBotBehavior(frequency: number, amplitude: number, confidence: number): 
-  { isBotLike: boolean; botLikeReason?: string } {
+  private checkForBotBehavior(
+    frequency: number,
+    amplitude: number,
+    confidence: number
+  ): { isBotLike: boolean; botLikeReason?: string } {
     if (frequency === 0) return { isBotLike: false };
     // Check for unnaturally stable frequency
-
-    this.pruneReplayBuffer();
-    if (this.isReplayed(frequency, amplitude, confidence)) {
-      return {
-        isBotLike: true,
-        botLikeReason: "Replayed audio",
-      };
-    }
 
     if (this.recentFrequencies.length >= 5 && frequency > 0) {
       const recentValidFreqs = this.recentFrequencies
@@ -359,10 +363,18 @@ export class ToneDetector {
         const cv = Math.sqrt(variance) / mean; // Coefficient of variation
         // Human pitch typically has some micro-variations
         // If variance is extremely low, it might be synthetic
-        if (cv < 0.0005 && mean > 150) {
+        if (cv < 0.001 && mean > 100) {
           return {
             isBotLike: true,
             botLikeReason: "Unnaturally stable frequency detected",
+          };
+        }
+
+        this.pruneReplayBuffer();
+        if (this.isReplayed(frequency, amplitude, confidence)) {
+          return {
+            isBotLike: true,
+            botLikeReason: "Replayed audio",
           };
         }
       }
