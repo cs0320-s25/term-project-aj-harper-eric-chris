@@ -482,7 +482,6 @@ export function AudioCaptcha({ onSuccess }: AudioCaptchaProps) {
         onSuccess(true);
         return;
       }
-      
 
       // If we already know the match was achieved, go straight to success
       if (matchAchieved) {
@@ -526,7 +525,6 @@ export function AudioCaptcha({ onSuccess }: AudioCaptchaProps) {
         onSuccess("failure");
         return;
       }
-
     } catch (error: any) {
       console.error("Error during verification:", error);
       setFailureMessage("An error occurred during verification");
@@ -595,12 +593,13 @@ export function AudioCaptcha({ onSuccess }: AudioCaptchaProps) {
           <h3 className="text-lg font-medium mb-2 text-center">
             Audio Tone Mimicry
           </h3>
-          <p className="text-sm text-gray-600 dark:text-gray-300 mb-4 text-center">
-            Listen to a tone and then mimic it with your voice.
+          <p className="text-sm text-gray-600 dark:text-dark-700 mb-4 text-center">
+            Listen to a tone and then mimic it with your voice. Hold the mimic'd
+            tone for a few seconds.
           </p>
           <button
             onClick={handleStart}
-            className="bg-blue-500 hover:bg-blue-600 text-white py-2 px-6 rounded-md transition-colors min-w-[160px]"
+            className="bg-primary-600 hover:bg-primary-700 text-white py-2 px-6 rounded-md transition-colors min-w-[160px]"
             aria-label="Start audio challenge"
           >
             Start
@@ -640,12 +639,11 @@ export function AudioCaptcha({ onSuccess }: AudioCaptchaProps) {
           <div className="space-y-4">
             {stage === "demo" && (
               <div
-                className="bg-blue-50 dark:bg-blue-900 p-4 rounded-md"
+                className="bg-success-light dark:bg-success-dark p-4 rounded-md mb-4"
                 aria-live="polite"
               >
-                <p className="text-sm text-blue-700 dark:text-blue-300">
-                  <span className="font-semibold">Listen carefully:</span> You
-                  will need to mimic this tone with your voice.
+                <p className="text-sm text-success dark:text-success">
+                  Listen to the tone. You'll need to match it with your voice.
                 </p>
               </div>
             )}
@@ -653,10 +651,10 @@ export function AudioCaptcha({ onSuccess }: AudioCaptchaProps) {
             {stage === "recording" && (
               <div>
                 <div
-                  className="bg-green-50 dark:bg-green-900 p-4 rounded-md mb-4"
+                  className="bg-success-light dark:bg-success-dark p-4 rounded-md mb-4"
                   aria-live="polite"
                 >
-                  <p className="text-sm text-green-700 dark:text-green-300">
+                  <p className="text-sm text-success dark:text-success">
                     <span className="font-semibold">Your turn:</span> Mimic the
                     tone you just heard. Maintain the correct pitch for 2
                     seconds to complete the challenge.
@@ -696,7 +694,7 @@ export function AudioCaptcha({ onSuccess }: AudioCaptchaProps) {
                   role="status"
                   aria-label="Analyzing your tone"
                 ></div>
-                <p className="text-gray-600 dark:text-gray-300">
+                <p className="text-gray-600 dark:text-dark-700">
                   Analyzing your tone...
                 </p>
               </div>
@@ -733,20 +731,18 @@ export function AudioCaptcha({ onSuccess }: AudioCaptchaProps) {
               </div>
             )}
 
-
             {stage === "permission-error" && (
               <div
-                className="bg-red-50 dark:bg-red-900 p-4 rounded-md text-center"
+                className="bg-error-light dark:bg-error-dark p-4 rounded-md text-center"
                 aria-live="assertive"
               >
-                <div className="text-red-500 mb-2">
+                <div className="text-error mb-4">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     className="h-12 w-12 mx-auto"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
-                    aria-hidden="true"
                   >
                     <path
                       strokeLinecap="round"
@@ -756,17 +752,17 @@ export function AudioCaptcha({ onSuccess }: AudioCaptchaProps) {
                     />
                   </svg>
                 </div>
-                <h3 className="text-lg font-medium mb-2 text-red-700 dark:text-red-300">
+                <h3 className="text-lg font-medium mb-2 text-error dark:text-error">
                   Microphone Access Required
                 </h3>
-                <p className="text-sm text-red-600 dark:text-red-400 mb-4">
+                <p className="text-sm text-error dark:text-error mb-4">
                   Please allow microphone access to use the audio tone
                   verification. Your microphone is used only for verification
                   and no audio is stored.
                 </p>
                 <button
                   onClick={handleRetry}
-                  className="bg-red-600 hover:bg-red-700 text-white py-2 px-6 rounded-md transition-colors"
+                  className="bg-gray-200 hover:bg-gray-300 text-gray-900 dark:bg-dark-300 dark:text-dark-900 dark:hover:bg-dark-400 px-4 py-2 rounded-md transition-colors"
                   aria-label="Try again with microphone access"
                 >
                   Try Again
@@ -776,33 +772,32 @@ export function AudioCaptcha({ onSuccess }: AudioCaptchaProps) {
 
             {stage === "bot-detected" && (
               <div
-                className="bg-red-50 dark:bg-red-900 p-4 rounded-md text-center"
+                className="bg-error-light dark:bg-error-dark p-4 rounded-md text-center"
                 aria-live="assertive"
               >
-                <div className="text-red-500 mb-2">
+                <div className="text-error mb-4">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     className="h-12 w-12 mx-auto"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
-                    aria-hidden="true"
                   >
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeWidth={2}
-                      d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
                     />
                   </svg>
                 </div>
-                <h3 className="text-lg font-medium mb-2 text-red-700 dark:text-red-300">
+                <h3 className="text-lg font-medium mb-2 text-error dark:text-error">
                   Verification Failed
                 </h3>
-                <p className="text-sm text-red-600 dark:text-red-400 mb-4">
+                <p className="text-sm text-error dark:text-error mb-4">
                   Synthetic/computer-generated audio detected.
                 </p>
-                <p className="text-xs text-red-600 dark:text-red-400 mb-2">
+                <p className="text-xs text-error dark:text-error mb-2">
                   Human verification required. Please reload the page to try
                   again.
                 </p>

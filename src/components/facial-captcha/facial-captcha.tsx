@@ -368,7 +368,7 @@ export const ExpressionSequence = ({ onSuccess }: Props) => {
   return (
     <div style={{ textAlign: "center", padding: "20px" }}>
       {stage === "loading" && (
-        <p role="status" aria-live="polite">
+        <p role="status" aria-live="polite" className="text-body">
           Loading facial recognition models...
         </p>
       )}
@@ -378,7 +378,7 @@ export const ExpressionSequence = ({ onSuccess }: Props) => {
           <h3 className="text-lg font-medium mb-2 text-center">
             Facial Expression Challenge
           </h3>
-          <p className="text-sm text-gray-600 dark:text-gray-300 mb-4 text-center">
+          <p className="text-sm text-gray-600 dark:text-dark-700 mb-4 text-center">
             Match each expression in the sequence to verify you're human. You'll
             need to hold each expression for a moment to proceed.
           </p>
@@ -387,7 +387,7 @@ export const ExpressionSequence = ({ onSuccess }: Props) => {
               setStage("expression");
               startVideo();
             }}
-            className="bg-blue-500 hover:bg-blue-600 text-white py-2 px-6 rounded-md transition-colors min-w-[160px]"
+            className="bg-primary-600 hover:bg-primary-700 text-white py-2 px-6 rounded-md transition-colors min-w-[160px]"
             aria-label="Start facial challenge"
           >
             Start
@@ -397,7 +397,7 @@ export const ExpressionSequence = ({ onSuccess }: Props) => {
 
       {stage === "expression" && !webcamVerified && (
         <div role="alert" aria-live="assertive">
-          <p style={{ color: "red" }}>Verifying webcam...</p>
+          <p className="text-error">Verifying webcam...</p>
         </div>
       )}
 
@@ -412,6 +412,7 @@ export const ExpressionSequence = ({ onSuccess }: Props) => {
               style={{ fontSize: "24px", marginBottom: "12px" }}
               role="heading"
               aria-level={2}
+              className="text-body"
             >
               Match this expression:
             </p>
@@ -427,6 +428,7 @@ export const ExpressionSequence = ({ onSuccess }: Props) => {
                 aria-label={`Target expression: ${
                   sequenceRef.current[currentIndexRef.current]
                 }`}
+                className="text-body"
               >
                 <span style={{ fontSize: "48px" }} aria-hidden="true">
                   {currentTargetEmoji}
@@ -450,6 +452,7 @@ export const ExpressionSequence = ({ onSuccess }: Props) => {
                 margin: "0 auto",
                 maxWidth: "100%",
                 height: "auto",
+                border: "1px solid var(--card-border)",
               }}
               aria-label="Webcam feed"
               role="img"
@@ -464,7 +467,7 @@ export const ExpressionSequence = ({ onSuccess }: Props) => {
             style={{
               width: "400px",
               height: "10px",
-              backgroundColor: "#eee",
+              backgroundColor: "var(--input-bg)",
               margin: "10px auto",
               borderRadius: "5px",
             }}
@@ -479,7 +482,7 @@ export const ExpressionSequence = ({ onSuccess }: Props) => {
               style={{
                 width: `${holdProgress}%`,
                 height: "100%",
-                backgroundColor: "#4caf50",
+                backgroundColor: "#4ade80",
                 borderRadius: "5px",
                 transition: "width 100ms linear",
               }}
@@ -504,7 +507,7 @@ export const ExpressionSequence = ({ onSuccess }: Props) => {
           >
             <span aria-hidden="true">
               Expression{" "}
-              <span style={{ color: "#4caf50" }}>
+              <span style={{ color: "#4ade80" }}>
                 {currentExpressionIndex + 1}
               </span>{" "}
               of {sequenceRef.current.length}
@@ -531,16 +534,11 @@ export const ExpressionSequence = ({ onSuccess }: Props) => {
               }
             }}
             disabled={skipsLeft <= 0}
-            style={{
-              marginTop: "10px",
-              padding: "8px 16px",
-              fontSize: "16px",
-              borderRadius: "6px",
-              border: "none",
-              backgroundColor: skipsLeft > 0 ? "#ccc" : "#888",
-              color: skipsLeft > 0 ? "#000" : "#444",
-              cursor: skipsLeft > 0 ? "pointer" : "not-allowed",
-            }}
+            className={`mt-3 py-2 px-4 rounded-md transition-colors ${
+              skipsLeft > 0
+                ? "bg-gray-200 hover:bg-gray-300 text-gray-800 dark:bg-dark-300 dark:text-dark-800 dark:hover:bg-dark-400"
+                : "bg-gray-300 text-gray-500 dark:bg-dark-400 dark:text-dark-600 cursor-not-allowed"
+            }`}
             aria-label={`Skip expression (${skipsLeft} remaining)`}
             aria-disabled={skipsLeft <= 0}
             aria-describedby="skip-description"
@@ -555,8 +553,8 @@ export const ExpressionSequence = ({ onSuccess }: Props) => {
       )}
 
       {stage === "success" && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg p-8 text-center">
-          <div className="text-green-500 mb-4">
+        <div className="bg-card dark:bg-dark-100 rounded-lg p-8 text-center shadow-card border border-card-border dark:border-dark-400">
+          <div className="text-success mb-4">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               className="h-16 w-16 mx-auto"
@@ -572,8 +570,10 @@ export const ExpressionSequence = ({ onSuccess }: Props) => {
               />
             </svg>
           </div>
-          <h2 className="text-2xl font-bold mb-2">Verification Successful!</h2>
-          <p className="text-gray-600 dark:text-gray-300 mb-4">
+          <h2 className="text-2xl font-bold mb-2 text-body">
+            Verification Successful!
+          </h2>
+          <p className="text-gray-600 dark:text-dark-700 mb-4">
             You have successfully verified that you are human.
           </p>
           <button
@@ -581,7 +581,7 @@ export const ExpressionSequence = ({ onSuccess }: Props) => {
               setStage("loading");
               onSuccess(false);
             }}
-            className="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-md transition-colors"
+            className="bg-primary-600 hover:bg-primary-700 text-white font-medium py-2 px-4 rounded-md transition-colors"
           >
             Try Again
           </button>
@@ -589,8 +589,8 @@ export const ExpressionSequence = ({ onSuccess }: Props) => {
       )}
 
       {stage === "timeout" && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg p-8 text-center">
-          <div className="text-yellow-500 mb-4">
+        <div className="bg-card dark:bg-dark-100 rounded-lg p-8 text-center shadow-card border border-card-border dark:border-dark-400">
+          <div className="text-warning mb-4">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               className="h-16 w-16 mx-auto"
@@ -606,8 +606,8 @@ export const ExpressionSequence = ({ onSuccess }: Props) => {
               />
             </svg>
           </div>
-          <h2 className="text-2xl font-bold mb-2">Time's Up!</h2>
-          <p className="text-gray-600 dark:text-gray-300 mb-4">
+          <h2 className="text-2xl font-bold mb-2 text-body">Time's Up!</h2>
+          <p className="text-gray-600 dark:text-dark-700 mb-4">
             The verification challenge has timed out. Please try again with a
             fresh attempt.
           </p>
@@ -616,7 +616,7 @@ export const ExpressionSequence = ({ onSuccess }: Props) => {
               setStage("loading");
               onSuccess("timeout");
             }}
-            className="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-md transition-colors"
+            className="bg-primary-600 hover:bg-primary-700 text-white font-medium py-2 px-4 rounded-md transition-colors"
           >
             Try Again
           </button>
@@ -624,8 +624,8 @@ export const ExpressionSequence = ({ onSuccess }: Props) => {
       )}
 
       {stage === "bot_detected" && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg p-8 text-center">
-          <div className="text-blue-500 mb-4">
+        <div className="bg-card dark:bg-dark-100 rounded-lg p-8 text-center shadow-card border border-card-border dark:border-dark-400">
+          <div className="text-info mb-4">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               className="h-16 w-16 mx-auto"
@@ -641,10 +641,10 @@ export const ExpressionSequence = ({ onSuccess }: Props) => {
               />
             </svg>
           </div>
-          <h2 className="text-2xl font-bold mb-2">
+          <h2 className="text-2xl font-bold mb-2 text-body">
             Additional Verification Needed
           </h2>
-          <p className="text-gray-600 dark:text-gray-300 mb-4">
+          <p className="text-gray-600 dark:text-dark-700 mb-4">
             We couldn't verify your response. This might happen if your camera
             is lagging, your connection is unstable, or if the lighting is poor.
             Please try again with a stable connection and good lighting.
@@ -654,7 +654,7 @@ export const ExpressionSequence = ({ onSuccess }: Props) => {
               setStage("loading");
               onSuccess(true);
             }}
-            className="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-md transition-colors"
+            className="bg-primary-600 hover:bg-primary-700 text-white font-medium py-2 px-4 rounded-md transition-colors"
           >
             Try Again
           </button>

@@ -3,15 +3,62 @@
 @tailwind utilities;
 
 :root {
+  /* Base colors */
   --background: #ffffff;
   --foreground: #171717;
+
+  /* Component colors */
+  --card-bg: #ffffff;
+  --card-border: #e5e7eb;
+  --input-bg: #f3f4f6;
+  --input-border: #d1d5db;
+  --button-bg: #f9fafb;
+
+  /* Status colors */
+  --success-bg: #f0fdf4;
+  --success-text: #166534;
+  --error-bg: #fef2f2;
+  --error-text: #b91c1c;
+  --warning-bg: #fffbeb;
+  --warning-text: #92400e;
+  --info-bg: #f0f9ff;
+  --info-text: #0369a1;
+
+  /* Shadow */
+  --shadow-color: rgba(0, 0, 0, 0.1);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Dark mode colors */
+.dark,
+:root[class~="dark"] {
+  --background: #121212;
+  --foreground: #e5e7eb;
+
+  /* Component colors */
+  --card-bg: #1e1e1e;
+  --card-border: #333333;
+  --input-bg: #2a2a2a;
+  --input-border: #4b4b4b;
+  --button-bg: #2d2d2d;
+
+  /* Status colors */
+  --success-bg: #022c22;
+  --success-text: #4ade80;
+  --error-bg: #2c0b0e;
+  --error-text: #f87171;
+  --warning-bg: #27190e;
+  --warning-text: #fbbf24;
+  --info-bg: #0c2536;
+  --info-text: #38bdf8;
+
+  /* Shadow */
+  --shadow-color: rgba(0, 0, 0, 0.5);
+}
+
+/* Define the transition effect for all elements when switching themes */
+* {
+  transition: background-color 0.3s ease, border-color 0.3s ease,
+    color 0.3s ease, box-shadow 0.3s ease;
 }
 
 @layer base {

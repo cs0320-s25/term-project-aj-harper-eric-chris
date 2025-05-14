@@ -107,53 +107,84 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 text-gray-900 dark:text-gray-100">
+    <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-gradient-to-b from-gray-50 to-gray-100 dark:from-dark-100 dark:to-dark-200 text-gray-900 dark:text-dark-900">
       <header className="mb-8 text-center">
-        <h1 className="text-4xl font-bold mb-2 text-blue-600 dark:text-blue-400">
+        <h1 className="text-4xl font-bold mb-2 text-primary-600 dark:text-primary-400">
           MimicCaptcha
         </h1>
-        <p className="text-gray-600 dark:text-gray-300 max-w-md">
+        <p className="text-gray-600 dark:text-dark-700 max-w-md">
           A multi-modal CAPTCHA system based on human mimicry capabilities
         </p>
       </header>
       <button
         onClick={() => setDarkMode((v) => !v)}
-        className="absolute top-4 right-4 px-3 py-1 border rounded"
+        className="absolute top-4 right-4 p-2 rounded-full transition-colors bg-gray-100 dark:bg-dark-200 hover:bg-gray-200 dark:hover:bg-dark-300 shadow-card"
+        aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
       >
-        {darkMode ? "☀️ Light" : "🌙 Dark"}
+        {darkMode ? (
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-6 w-6 text-yellow-500"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"
+            />
+          </svg>
+        ) : (
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-6 w-6 text-primary-600"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"
+            />
+          </svg>
+        )}
       </button>
 
       {/* Tab selection */}
-      <div className="mb-8 bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 flex flex-wrap justify-center gap-2">
+      <div className="mb-8 bg-card dark:bg-dark-100 rounded-lg shadow-card border border-card-border dark:border-dark-400 p-4 flex flex-wrap justify-center gap-2">
         <button
           onClick={() => setTabView("original")}
-          className={`py-2 px-4 rounded
+          className={`py-2 px-4 rounded-md transition-colors
             ${
               tabView === "original"
-                ? "bg-blue-500 text-white"
-                : "bg-gray-200 hover:bg-gray-300 text-gray-900 dark:text-gray-900"
+                ? "bg-primary-600 text-white"
+                : "bg-white hover:bg-gray-100 dark:bg-dark-300 dark:hover:bg-dark-400 text-gray-800 dark:text-dark-900 border border-gray-200 dark:border-dark-500"
             }`}
         >
           Combined Setup
         </button>
         <button
           onClick={() => setTabView("individual")}
-          className={`py-2 px-4 rounded
+          className={`py-2 px-4 rounded-md transition-colors
             ${
               tabView === "individual"
-                ? "bg-blue-500 text-white"
-                : "bg-gray-200 hover:bg-gray-300 text-gray-900 dark:text-gray-900"
+                ? "bg-primary-600 text-white"
+                : "bg-white hover:bg-gray-100 dark:bg-dark-300 dark:hover:bg-dark-400 text-gray-800 dark:text-dark-900 border border-gray-200 dark:border-dark-500"
             }`}
         >
           Individual Components
         </button>
         <button
           onClick={() => setTabView("form-demo")}
-          className={`py-2 px-4 rounded
+          className={`py-2 px-4 rounded-md transition-colors
             ${
               tabView === "form-demo"
-                ? "bg-blue-500 text-white"
-                : "bg-gray-200 hover:bg-gray-300 text-gray-900 dark:text-gray-900"
+                ? "bg-primary-600 text-white"
+                : "bg-white hover:bg-gray-100 dark:bg-dark-300 dark:hover:bg-dark-400 text-gray-800 dark:text-dark-900 border border-gray-200 dark:border-dark-500"
             }`}
         >
           Form Demo
@@ -162,18 +193,18 @@ const App: React.FC = () => {
 
       <main className="w-full max-w-4xl">
         {tabView === "original" && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-            <h2 className="text-xl font-semibold mb-4">
+          <div className="bg-card dark:bg-dark-100 rounded-lg shadow-card border border-card-border dark:border-dark-400 p-6">
+            <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-dark-900">
               Original Implementation
             </h2>
-            <p className="text-gray-600 dark:text-gray-300 mb-4">
+            <p className="text-gray-600 dark:text-dark-700 mb-4">
               This shows how the components work together like in the original
               app:
             </p>
 
             {captchaVerified ? (
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-8 text-center">
-                <div className="text-green-500 mb-4">
+              <div className="bg-card dark:bg-dark-100 rounded-lg p-8 text-center border border-card-border dark:border-dark-400">
+                <div className="text-success mb-4">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     className="h-16 w-16 mx-auto"
@@ -189,10 +220,10 @@ const App: React.FC = () => {
                     />
                   </svg>
                 </div>
-                <h2 className="text-2xl font-bold mb-2">
+                <h2 className="text-2xl font-bold mb-2 text-gray-800 dark:text-dark-900">
                   Verification Successful!
                 </h2>
-                <p className="text-gray-600 dark:text-gray-300 mb-4">
+                <p className="text-gray-600 dark:text-dark-700 mb-4">
                   You have successfully verified that you are human.
                 </p>
                 <button
@@ -200,14 +231,14 @@ const App: React.FC = () => {
                     setCaptchaVerified(false);
                     setSubmissionStatus("idle");
                   }}
-                  className="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-md transition-colors"
+                  className="bg-primary-600 hover:bg-primary-700 text-white font-medium py-2 px-4 rounded-md transition-colors"
                 >
                   Try Again
                 </button>
               </div>
             ) : submissionStatus === "timeout" ? (
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-8 text-center">
-                <div className="text-yellow-500 mb-4">
+              <div className="bg-card dark:bg-dark-100 rounded-lg p-8 text-center border border-card-border dark:border-dark-400">
+                <div className="text-warning mb-4">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     className="h-16 w-16 mx-auto"
@@ -223,8 +254,10 @@ const App: React.FC = () => {
                     />
                   </svg>
                 </div>
-                <h2 className="text-2xl font-bold mb-2">Time's Up!</h2>
-                <p className="text-gray-600 dark:text-gray-300 mb-4">
+                <h2 className="text-2xl font-bold mb-2 text-gray-800 dark:text-dark-900">
+                  Time's Up!
+                </h2>
+                <p className="text-gray-600 dark:text-dark-700 mb-4">
                   The verification challenge has timed out. Please try again
                   with a fresh attempt.
                 </p>
@@ -233,14 +266,14 @@ const App: React.FC = () => {
                     setCaptchaVerified(false);
                     setSubmissionStatus("idle");
                   }}
-                  className="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-md transition-colors"
+                  className="bg-primary-600 hover:bg-primary-700 text-white font-medium py-2 px-4 rounded-md transition-colors"
                 >
                   Try Again
                 </button>
               </div>
             ) : submissionStatus === "suspicious" ? (
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-8 text-center">
-                <div className="text-blue-500 mb-4">
+              <div className="bg-card dark:bg-dark-100 rounded-lg p-8 text-center border border-card-border dark:border-dark-400">
+                <div className="text-info mb-4">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     className="h-16 w-16 mx-auto"
@@ -256,10 +289,10 @@ const App: React.FC = () => {
                     />
                   </svg>
                 </div>
-                <h2 className="text-2xl font-bold mb-2">
+                <h2 className="text-2xl font-bold mb-2 text-gray-800 dark:text-dark-900">
                   Additional Verification Needed
                 </h2>
-                <p className="text-gray-600 dark:text-gray-300 mb-4">
+                <p className="text-gray-600 dark:text-dark-700 mb-4">
                   We couldn't verify your response. This might happen if your
                   camera is lagging, your connection is unstable, or if the
                   lighting is poor. Please try again with a stable connection
@@ -270,24 +303,23 @@ const App: React.FC = () => {
                     setCaptchaVerified(false);
                     setSubmissionStatus("idle");
                   }}
-                  className="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-md transition-colors"
+                  className="bg-primary-600 hover:bg-primary-700 text-white font-medium py-2 px-4 rounded-md transition-colors"
                 >
                   Try Again
                 </button>
               </div>
             ) : submissionStatus === "failure" ? (
               <div
-                className="bg-red-50 dark:bg-red-900 p-4 rounded-md text-center"
+                className="bg-error-light dark:bg-error-dark p-4 rounded-md text-center"
                 aria-live="assertive"
               >
-                <div className="text-red-500 mb-2">
+                <div className="text-error mb-4">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     className="h-12 w-12 mx-auto"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
-                    aria-hidden="true"
                   >
                     <path
                       strokeLinecap="round"
@@ -297,10 +329,10 @@ const App: React.FC = () => {
                     />
                   </svg>
                 </div>
-                <h3 className="text-lg font-medium mb-2 text-red-700 dark:text-red-300">
+                <h3 className="text-lg font-medium mb-2 text-error dark:text-error">
                   Verification Failed
                 </h3>
-                <p className="text-sm text-red-600 dark:text-red-400 mb-4">
+                <p className="text-sm text-error dark:text-error mb-4">
                   We couldn't match your tone with the expected frequency.
                 </p>
                 <button
@@ -308,7 +340,7 @@ const App: React.FC = () => {
                     setCaptchaVerified(false);
                     setSubmissionStatus("idle");
                   }}
-                  className="bg-red-600 hover:bg-red-700 text-white py-2 px-6 rounded-md transition-colors"
+                  className="px-4 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-dark-300 dark:hover:bg-dark-400 text-gray-800 dark:text-dark-900 rounded-md transition-colors"
                   aria-label="Try the audio challenge again"
                 >
                   Try Again
@@ -319,13 +351,13 @@ const App: React.FC = () => {
                 <div className="tabs flex mb-4">
                   <button
                     onClick={() => setSelectedCaptchaType("audio")}
-                    className={`flex-1 py-2 px-4 rounded-tl rounded-bl border-r ${
+                    className={`flex-1 py-2 px-4 rounded-tl-md rounded-bl-md border-r ${
                       selectedCaptchaType === "audio"
-                        ? "bg-blue-500 text-white"
-                        : "bg-gray-200"
+                        ? "bg-primary-600 text-white"
+                        : "bg-white dark:bg-dark-300 hover:bg-gray-100 dark:hover:bg-dark-400 text-gray-800 dark:text-dark-900"
                     }`}
                   >
-                    <span className="flex items-center justify-center dark:text-gray-900">
+                    <span className="flex items-center justify-center">
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
                         className="h-5 w-5 mr-2"
@@ -345,13 +377,13 @@ const App: React.FC = () => {
                   </button>
                   <button
                     onClick={() => setSelectedCaptchaType("facial")}
-                    className={`flex-1 py-2 px-4 rounded-tr rounded-br ${
+                    className={`flex-1 py-2 px-4 rounded-tr-md rounded-br-md ${
                       selectedCaptchaType === "facial"
-                        ? "bg-blue-500 text-white"
-                        : "bg-gray-200"
+                        ? "bg-primary-600 text-white"
+                        : "bg-white dark:bg-dark-300 hover:bg-gray-100 dark:hover:bg-dark-400 text-gray-800 dark:text-dark-900"
                     }`}
                   >
-                    <span className="flex items-center justify-center dark:text-gray-900">
+                    <span className="flex items-center justify-center">
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
                         className="h-5 w-5 mr-2"
@@ -371,7 +403,7 @@ const App: React.FC = () => {
                   </button>
                 </div>
 
-                <div className="captcha-container bg-white dark:bg-gray-800 p-4 rounded-md border border-gray-200 dark:border-gray-700">
+                <div className="captcha-container bg-card dark:bg-dark-100 p-4 rounded-md border border-card-border dark:border-dark-400">
                   {selectedCaptchaType === "audio" ? (
                     <AudioCaptcha onSuccess={handleCaptchaSuccess} />
                   ) : (
@@ -386,19 +418,21 @@ const App: React.FC = () => {
         )}
 
         {tabView === "individual" && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-            <h2 className="text-xl font-semibold mb-4">
+          <div className="bg-card dark:bg-dark-100 rounded-lg shadow-card border border-card-border dark:border-dark-400 p-6">
+            <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-dark-900">
               Individual Components
             </h2>
-            <p className="text-gray-600 dark:text-gray-300 mb-6">
+            <p className="text-gray-600 dark:text-dark-700 mb-6">
               Access the individual components separately if you prefer:
             </p>
 
             <div className="space-y-6">
-              <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
-                <h3 className="text-lg font-medium mb-2">Audio Captcha</h3>
+              <div className="p-4 border border-card-border dark:border-dark-400 rounded-lg bg-gray-50 dark:bg-dark-200">
+                <h3 className="text-lg font-medium mb-2 text-gray-800 dark:text-dark-900">
+                  Audio Captcha
+                </h3>
                 <div className="mb-2">
-                  <code className="bg-gray-100 dark:bg-gray-900 p-1 rounded text-sm">
+                  <code className="bg-white dark:bg-dark-300 p-1 rounded text-sm text-gray-800 dark:text-dark-900 border border-gray-200 dark:border-dark-500">
                     {`import { AudioCaptcha } from "mimicaptcha";`}
                   </code>
                 </div>
@@ -407,10 +441,12 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
-                <h3 className="text-lg font-medium mb-2">Facial Captcha</h3>
+              <div className="p-4 border border-card-border dark:border-dark-400 rounded-lg bg-gray-50 dark:bg-dark-200">
+                <h3 className="text-lg font-medium mb-2 text-gray-800 dark:text-dark-900">
+                  Facial Captcha
+                </h3>
                 <div className="mb-2">
-                  <code className="bg-gray-100 dark:bg-gray-900 p-1 rounded text-sm">
+                  <code className="bg-white dark:bg-dark-300 p-1 rounded text-sm text-gray-800 dark:text-dark-900 border border-gray-200 dark:border-dark-500">
                     {`import { ExpressionSequence } from "mimicaptcha";`}
                   </code>
                 </div>
@@ -427,20 +463,22 @@ const App: React.FC = () => {
         {tabView === "form-demo" && (
           <div className="max-w-4xl mx-auto">
             <div className="text-center mb-6">
-              <h2 className="text-2xl font-bold">Contact Form Demo</h2>
-              <p className="text-gray-600 mt-2">
+              <h2 className="text-2xl font-bold text-gray-800 dark:text-dark-900">
+                Contact Form Demo
+              </h2>
+              <p className="text-gray-600 dark:text-dark-700 mt-2">
                 See different CAPTCHA options in action
               </p>
             </div>
 
             {showForm ? (
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8">
+              <div className="bg-card dark:bg-dark-100 rounded-lg shadow-card border border-card-border dark:border-dark-400 p-8">
                 <form onSubmit={handleFormSubmit} className="space-y-6">
                   {/* Form fields */}
                   <div>
                     <label
                       htmlFor="name"
-                      className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-100"
+                      className="block text-sm font-medium text-gray-700 dark:text-dark-900 mb-1"
                     >
                       Name
                     </label>
@@ -450,14 +488,14 @@ const App: React.FC = () => {
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       required
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md bg-gray-100 dark:bg-gray-400 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-4 py-2 border border-input dark:border-dark-400 rounded-md bg-white dark:bg-dark-200 text-gray-900 dark:text-dark-900 focus:ring-primary-500 focus:border-primary-500 transition-colors"
                     />
                   </div>
 
                   <div>
                     <label
                       htmlFor="email"
-                      className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-100"
+                      className="block text-sm font-medium text-gray-700 dark:text-dark-900 mb-1"
                     >
                       Email
                     </label>
@@ -466,7 +504,7 @@ const App: React.FC = () => {
                       id="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md bg-gray-100 dark:bg-gray-400 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-4 py-2 border border-input dark:border-dark-400 rounded-md bg-white dark:bg-dark-200 text-gray-900 dark:text-dark-900 focus:ring-primary-500 focus:border-primary-500 transition-colors"
                       required
                     />
                   </div>
@@ -474,7 +512,7 @@ const App: React.FC = () => {
                   <div>
                     <label
                       htmlFor="message"
-                      className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-100"
+                      className="block text-sm font-medium text-gray-700 dark:text-dark-900 mb-1"
                     >
                       Message
                     </label>
@@ -483,18 +521,18 @@ const App: React.FC = () => {
                       value={message}
                       onChange={(e) => setMessage(e.target.value)}
                       rows={4}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md bg-gray-100 dark:bg-gray-400 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-4 py-2 border border-input dark:border-dark-400 rounded-md bg-white dark:bg-dark-200 text-gray-900 dark:text-dark-900 focus:ring-primary-500 focus:border-primary-500 transition-colors"
                       required
                     />
                   </div>
 
                   {/* CAPTCHA section */}
-                  <div className="border-t border-gray-200 pt-6">
-                    <div className="flex flex-col items-center bg-gray-50 dark:bg-gray-800 p-6 rounded-lg">
-                      <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center mb-4">
+                  <div className="border-t border-gray-200 dark:border-dark-400 pt-6">
+                    <div className="flex flex-col items-center bg-gray-50 dark:bg-dark-200 p-6 rounded-lg border border-card-border dark:border-dark-400 shadow-sm">
+                      <div className="w-16 h-16 bg-primary-100 dark:bg-primary-900 rounded-full flex items-center justify-center mb-4">
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
-                          className="h-8 w-8 text-blue-500"
+                          className="h-8 w-8 text-primary-500 dark:text-primary-400"
                           fill="none"
                           viewBox="0 0 24 24"
                           stroke="currentColor"
@@ -508,10 +546,10 @@ const App: React.FC = () => {
                         </svg>
                       </div>
 
-                      <h2 className="text-xl font-medium mb-2 text-center">
+                      <h2 className="text-xl font-medium mb-2 text-center text-gray-800 dark:text-dark-900">
                         Verify you're human
                       </h2>
-                      <p className="text-sm text-gray-600 dark:text-gray-300 mb-4 text-center">
+                      <p className="text-sm text-gray-600 dark:text-dark-700 mb-4 text-center">
                         Complete the mimicry challenge to continue
                       </p>
 
@@ -520,16 +558,16 @@ const App: React.FC = () => {
                           <div className="text-5xl mb-4" aria-hidden="true">
                             ✅
                           </div>
-                          <h3 className="text-xl font-medium text-green-600 mb-2">
+                          <h3 className="text-xl font-medium text-success dark:text-success mb-2">
                             Verification Successful!
                           </h3>
-                          <p className="text-gray-600 mb-4">
+                          <p className="text-gray-600 dark:text-dark-700 mb-4">
                             You've been verified as human.
                           </p>
                           <button
                             type="button"
                             onClick={resetFormCaptcha}
-                            className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-md text-gray-800 transition-colors"
+                            className="px-4 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-dark-300 dark:hover:bg-dark-400 rounded-md text-gray-800 dark:text-dark-900 transition-colors"
                           >
                             Reset Verification
                           </button>
@@ -543,11 +581,11 @@ const App: React.FC = () => {
                                 onClick={() =>
                                   setFormCaptchaType(CaptchaType.AUDIO)
                                 }
-                                className="flex items-center justify-center space-x-2 bg-gray-200 hover:bg-gray-300 text-gray-800 py-3 px-6 rounded-md transition-colors"
+                                className="flex items-center justify-center space-x-2 bg-white hover:bg-gray-100 dark:bg-dark-300 dark:hover:bg-dark-400 text-gray-800 dark:text-dark-900 py-3 px-6 rounded-md transition-colors border border-gray-200 dark:border-dark-500 shadow-sm"
                               >
                                 <svg
                                   xmlns="http://www.w3.org/2000/svg"
-                                  className="h-5 w-5"
+                                  className="h-5 w-5 text-primary-500 dark:text-primary-400"
                                   fill="none"
                                   viewBox="0 0 24 24"
                                   stroke="currentColor"
@@ -567,11 +605,11 @@ const App: React.FC = () => {
                                 onClick={() =>
                                   setFormCaptchaType(CaptchaType.FACIAL)
                                 }
-                                className="flex items-center justify-center space-x-2 bg-gray-200 hover:bg-gray-300 text-black py-3 px-6 rounded-md transition-colors"
+                                className="flex items-center justify-center space-x-2 bg-white hover:bg-gray-100 dark:bg-dark-300 dark:hover:bg-dark-400 text-gray-800 dark:text-dark-900 py-3 px-6 rounded-md transition-colors border border-gray-200 dark:border-dark-500 shadow-sm"
                               >
                                 <svg
                                   xmlns="http://www.w3.org/2000/svg"
-                                  className="h-5 w-5"
+                                  className="h-5 w-5 text-primary-500 dark:text-primary-400"
                                   fill="none"
                                   viewBox="0 0 24 24"
                                   stroke="currentColor"
@@ -598,7 +636,7 @@ const App: React.FC = () => {
                                 onClick={() =>
                                   setFormCaptchaType(CaptchaType.NONE)
                                 }
-                                className="mt-4 px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-md text-gray-800 transition-colors"
+                                className="mt-4 px-4 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-dark-300 dark:hover:bg-dark-400 rounded-md text-gray-800 dark:text-dark-900 transition-colors"
                               >
                                 Back to Options
                               </button>
@@ -617,7 +655,7 @@ const App: React.FC = () => {
                                 onClick={() =>
                                   setFormCaptchaType(CaptchaType.NONE)
                                 }
-                                className="mt-4 px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-md text-gray-800 transition-colors"
+                                className="mt-4 px-4 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-dark-300 dark:hover:bg-dark-400 rounded-md text-gray-800 dark:text-dark-900 transition-colors"
                               >
                                 Back to Options
                               </button>
@@ -634,8 +672,8 @@ const App: React.FC = () => {
                       disabled={!formCaptchaVerified}
                       className={`px-6 py-3 rounded-md transition-colors ${
                         formCaptchaVerified
-                          ? "bg-green-600 hover:bg-green-700 text-white"
-                          : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                          ? "bg-success hover:bg-green-700 text-white dark:bg-green-700 dark:hover:bg-green-800"
+                          : "bg-gray-300 dark:bg-dark-400 text-gray-500 dark:text-dark-600 cursor-not-allowed"
                       }`}
                     >
                       Submit Form
@@ -644,12 +682,12 @@ const App: React.FC = () => {
                 </form>
               </div>
             ) : (
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 text-center">
+              <div className="bg-card dark:bg-dark-100 rounded-lg shadow-card border border-card-border dark:border-dark-400 p-8 text-center">
                 <div className="text-6xl mb-6">🎉</div>
-                <h2 className="text-2xl font-bold text-green-600 mb-2">
+                <h2 className="text-2xl font-bold text-success mb-2">
                   Form Submitted Successfully!
                 </h2>
-                <p className="text-gray-600 mb-6">
+                <p className="text-gray-600 dark:text-dark-700 mb-6">
                   Thank you for your submission, {name}! We'll get back to you
                   soon.
                 </p>
@@ -663,7 +701,7 @@ const App: React.FC = () => {
                     setEmail("");
                     setMessage("");
                   }}
-                  className="px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-md transition-colors"
+                  className="px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-md transition-colors"
                 >
                   Start Over
                 </button>
@@ -673,7 +711,7 @@ const App: React.FC = () => {
         )}
       </main>
 
-      <footer className="mt-12 text-center text-gray-500 dark:text-gray-400 text-sm">
+      <footer className="mt-12 text-center text-gray-500 dark:text-dark-600 text-sm">
         <p>
           © {new Date().getFullYear()} MimicCaptcha. Privacy-first human
           verification.

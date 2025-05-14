@@ -180,16 +180,16 @@ export function MimicCaptcha(props: MimicCaptchaProps) {
     resetErrorBoundary: () => void;
   }) => {
     return (
-      <div className="flex flex-col items-center justify-center p-4 bg-red-50 dark:bg-red-900 rounded-lg">
-        <h2 className="text-lg font-bold text-red-600 dark:text-red-300 mb-2">
+      <div className="flex flex-col items-center justify-center p-4 bg-error-light dark:bg-error-dark rounded-lg">
+        <h2 className="text-lg font-bold text-error dark:text-error mb-2">
           Error:
         </h2>
-        <pre className="text-sm text-red-500 dark:text-red-300 bg-red-100 dark:bg-red-800 p-2 rounded mb-4 overflow-auto max-w-full">
+        <pre className="text-sm text-error dark:text-error bg-error-light/50 dark:bg-error-dark/50 p-2 rounded mb-4 overflow-auto max-w-full">
           {error.message}
         </pre>
         <button
           onClick={resetErrorBoundary}
-          className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+          className="px-4 py-2 bg-error text-white rounded-md hover:bg-red-700 transition-colors"
           aria-label="Try again"
         >
           Try again
@@ -208,13 +208,13 @@ export function MimicCaptcha(props: MimicCaptchaProps) {
   // Base container classes
   const containerClass = `${
     darkMode ? "dark" : ""
-  } bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4 ${
+  } bg-card border border-card-border dark:border-dark-400 rounded-lg shadow-card p-4 ${
     sizeClasses[size!]
   } ${className}`;
   const tabClass = "py-2 px-4 rounded-md transition-colors";
-  const activeTabClass = "bg-blue-500 text-white";
+  const activeTabClass = "bg-primary-600 text-white";
   const inactiveTabClass =
-    "bg-gray-200 hover:bg-gray-300 text-gray-800 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600";
+    "bg-gray-200 hover:bg-gray-300 text-gray-800 dark:bg-dark-200 dark:text-dark-900 dark:hover:bg-dark-300";
 
   // Pass difficulty to captcha components
   const captchaProps = {
@@ -231,7 +231,7 @@ export function MimicCaptcha(props: MimicCaptchaProps) {
         data-testid="mimic-captcha-success"
       >
         <div className="text-center py-4">
-          <div className="text-green-500 mb-4">
+          <div className="text-success mb-4">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               className="h-16 w-16 mx-auto"
@@ -248,10 +248,10 @@ export function MimicCaptcha(props: MimicCaptchaProps) {
               />
             </svg>
           </div>
-          <h2 className="text-2xl font-bold mb-2 text-gray-800 dark:text-gray-100">
+          <h2 className="text-2xl font-bold mb-2 text-gray-800 dark:text-dark-900">
             Verification Successful!
           </h2>
-          <p className="text-gray-600 dark:text-gray-300 mb-4">
+          <p className="text-gray-600 dark:text-dark-700 mb-4">
             {successMessage}
           </p>
         </div>
@@ -262,10 +262,10 @@ export function MimicCaptcha(props: MimicCaptchaProps) {
   return (
     <div className={containerClass} style={style} data-testid="mimic-captcha">
       <div className="flex items-center mb-4">
-        <div className="mr-3 bg-blue-100 dark:bg-blue-900 p-2 rounded-full">
+        <div className="mr-3 bg-primary-100 dark:bg-primary-900 p-2 rounded-full">
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            className="h-6 w-6 text-blue-600 dark:text-blue-400"
+            className="h-6 w-6 text-primary-600 dark:text-primary-400"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -280,10 +280,10 @@ export function MimicCaptcha(props: MimicCaptchaProps) {
           </svg>
         </div>
         <div>
-          <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100">
+          <h2 className="text-xl font-semibold text-gray-800 dark:text-dark-900">
             Verify you're human
           </h2>
-          <p className="text-sm text-gray-600 dark:text-gray-300">
+          <p className="text-sm text-gray-600 dark:text-dark-700">
             Complete the mimicry challenge to continue
           </p>
         </div>
@@ -359,7 +359,7 @@ export function MimicCaptcha(props: MimicCaptchaProps) {
       </div>
 
       {maxAttempts! > 1 && attempts > 0 && (
-        <div className="mt-2 text-xs text-right text-gray-500 dark:text-gray-400">
+        <div className="mt-2 text-xs text-right text-gray-500 dark:text-dark-600">
           Attempts: {attempts}/{maxAttempts}
         </div>
       )}
