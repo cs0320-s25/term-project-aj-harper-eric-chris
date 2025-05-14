@@ -3,12 +3,15 @@
  * Implements YIN algorithm for fundamental frequency detection
  */
 
+import { appendFile } from "fs";
+
 export interface DetectionResult {
   frequency: number;
   amplitude: number;
   confidenceScore: number;
   isBotLike: boolean;
   botLikeReason?: string;
+  time?: number;
 }
 
 export interface ToneDetectorOptions {
@@ -29,6 +32,7 @@ export class ToneDetector {
   private recentFrequencies: number[] = [];
   private recentAmplitudes: number[] = [];
   private lastProcessedAt: number = 0;
+  private replayBuffer: DetectionResult[] = [];
   private static DEFAULT_OPTIONS: Required<ToneDetectorOptions> = {
     minFrequency: 85,
     maxFrequency: 1000,
@@ -96,17 +100,26 @@ export class ToneDetector {
     // Update history
     this.recentFrequencies.unshift(frequency);
     this.recentFrequencies = this.recentFrequencies.slice(0, 10);
-
     this.recentAmplitudes.unshift(amplitude);
     this.recentAmplitudes = this.recentAmplitudes.slice(0, 10);
-
-    // Check for bot-like behavior
-    const botCheckResult = this.options.enableBotDetection
-      ? this.checkForBotBehavior(frequency, amplitude)
-      : { isBotLike: false };
-
     // Scale confidence score by amplitude - adjust scaling for quieter sounds
     const scaledConfidence = confidence * Math.min(1, amplitude * 10); // Increased scaling factor from 5 to 10
+    // Check for bot-like behavior
+
+    const botCheckResult = this.options.enableBotDetection
+      ? this.checkForBotBehavior(frequency, amplitude, scaledConfidence)
+      : { isBotLike: false };
+
+    if (botCheckResult.isBotLike == true){
+      this.replayBuffer.push({
+        frequency,
+        amplitude,
+        confidenceScore: scaledConfidence,
+        ...botCheckResult,
+        time: Date.now(),
+        }
+      )
+    }
 
     return {
       frequency,
@@ -116,6 +129,14 @@ export class ToneDetector {
     };
   }
 
+  public isReplayed(frequency: number, amplitude: number, confidenceScore: number): boolean {
+    this.replayBuffer.forEach((record) => {
+      if (frequency == record.frequency && amplitude == record.amplitude && confidenceScore == record.confidenceScore){
+        return true;
+      }
+    });
+    return false;
+  }
   /**
    * Check if the user's tone matches a target frequency
    */
@@ -140,6 +161,12 @@ export class ToneDetector {
       return true;
 
     return false;
+  }
+
+  public pruneReplayBuffer() {
+    const TEN_MINUTES = 10 * 60 * 1000;
+    const cutoff = Date.now() - TEN_MINUTES;
+    this.replayBuffer = this.replayBuffer.filter((r) => (r.time ?? 0) >= cutoff);
   }
 
   /**
@@ -303,13 +330,19 @@ export class ToneDetector {
   /**
    * Check for bot-like behavior in audio signals
    */
-  private checkForBotBehavior(
-    frequency: number,
-    amplitude: number
-  ): { isBotLike: boolean; botLikeReason?: string } {
+  private checkForBotBehavior(frequency: number, amplitude: number, confidence: number): 
+  { isBotLike: boolean; botLikeReason?: string } {
     if (frequency === 0) return { isBotLike: false };
-
     // Check for unnaturally stable frequency
+
+    this.pruneReplayBuffer();
+    if (this.isReplayed(frequency, amplitude, confidence)) {
+      return {
+        isBotLike: true,
+        botLikeReason: "Replayed audio",
+      };
+    }
+
     if (this.recentFrequencies.length >= 5 && frequency > 0) {
       const recentValidFreqs = this.recentFrequencies
         .filter((f) => f > this.options.minFrequency)

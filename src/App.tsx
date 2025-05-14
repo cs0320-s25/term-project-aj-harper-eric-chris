@@ -12,7 +12,7 @@ enum CaptchaType {
  * This still allows you to use the original components with the new setup
  */
 const App: React.FC = () => {
-  
+  const [darkMode, setDarkMode] = useState(false);
   const [tabView, setTabView] = useState<
     "original" | "individual" | "form-demo"
   >("original");
@@ -20,6 +20,9 @@ const App: React.FC = () => {
   const [selectedCaptchaType, setSelectedCaptchaType] = useState<
     "audio" | "facial"
   >("audio");
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", darkMode);
+  }, [darkMode]);
 
   // Form demo state
   const [name, setName] = useState("");
@@ -33,7 +36,6 @@ const App: React.FC = () => {
   const [submissionStatus, setSubmissionStatus] = useState<
     "idle" | "success" | "error" | "timeout" | "suspicious"
   >("idle");
-
 
   const handleCaptchaSuccess = (status: boolean | "timeout") => {
     if (status === "timeout") {
@@ -101,7 +103,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
+    <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 text-gray-900 dark:text-gray-100">
       <header className="mb-8 text-center">
         <h1 className="text-4xl font-bold mb-2 text-blue-600 dark:text-blue-400">
           MimicCaptcha
@@ -110,36 +112,45 @@ const App: React.FC = () => {
           A multi-modal CAPTCHA system based on human mimicry capabilities
         </p>
       </header>
+      <button
+        onClick={() => setDarkMode((v) => !v)}
+        className="absolute top-4 right-4 px-3 py-1 border rounded"
+      >
+        {darkMode ? "☀️ Light" : "🌙 Dark"}
+      </button>
 
       {/* Tab selection */}
       <div className="mb-8 bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 flex flex-wrap justify-center gap-2">
         <button
           onClick={() => setTabView("original")}
-          className={`py-2 px-4 rounded ${
-            tabView === "original"
-              ? "bg-blue-500 text-white"
-              : "bg-gray-200 hover:bg-gray-300"
-          }`}
+          className={`py-2 px-4 rounded
+            ${
+              tabView === "original"
+                ? "bg-blue-500 text-white"
+                : "bg-gray-200 hover:bg-gray-300 text-gray-900 dark:text-gray-900"
+            }`}
         >
           Combined Setup
         </button>
         <button
           onClick={() => setTabView("individual")}
-          className={`py-2 px-4 rounded ${
-            tabView === "individual"
-              ? "bg-blue-500 text-white"
-              : "bg-gray-200 hover:bg-gray-300"
-          }`}
+          className={`py-2 px-4 rounded
+            ${
+              tabView === "individual"
+                ? "bg-blue-500 text-white"
+                : "bg-gray-200 hover:bg-gray-300 text-gray-900 dark:text-gray-900"
+            }`}
         >
           Individual Components
         </button>
         <button
           onClick={() => setTabView("form-demo")}
-          className={`py-2 px-4 rounded ${
-            tabView === "form-demo"
-              ? "bg-blue-500 text-white"
-              : "bg-gray-200 hover:bg-gray-300"
-          }`}
+          className={`py-2 px-4 rounded
+            ${
+              tabView === "form-demo"
+                ? "bg-blue-500 text-white"
+                : "bg-gray-200 hover:bg-gray-300 text-gray-900 dark:text-gray-900"
+            }`}
         >
           Form Demo
         </button>
@@ -271,7 +282,7 @@ const App: React.FC = () => {
                         : "bg-gray-200"
                     }`}
                   >
-                    <span className="flex items-center justify-center">
+                    <span className="flex items-center justify-center dark:text-gray-900">
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
                         className="h-5 w-5 mr-2"
@@ -297,7 +308,7 @@ const App: React.FC = () => {
                         : "bg-gray-200"
                     }`}
                   >
-                    <span className="flex items-center justify-center">
+                    <span className="flex items-center justify-center dark:text-gray-900">
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
                         className="h-5 w-5 mr-2"
@@ -386,7 +397,7 @@ const App: React.FC = () => {
                   <div>
                     <label
                       htmlFor="name"
-                      className="block text-sm font-medium text-gray-700 mb-1"
+                      className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-100"
                     >
                       Name
                     </label>
@@ -395,15 +406,15 @@ const App: React.FC = () => {
                       id="name"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                       required
+                      className="w-full px-4 py-2 border border-gray-300 rounded-md bg-gray-100 dark:bg-gray-400 focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
 
                   <div>
                     <label
                       htmlFor="email"
-                      className="block text-sm font-medium text-gray-700 mb-1"
+                      className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-100"
                     >
                       Email
                     </label>
@@ -412,7 +423,7 @@ const App: React.FC = () => {
                       id="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-md bg-gray-100 dark:bg-gray-400 focus:ring-blue-500 focus:border-blue-500"
                       required
                     />
                   </div>
@@ -420,7 +431,7 @@ const App: React.FC = () => {
                   <div>
                     <label
                       htmlFor="message"
-                      className="block text-sm font-medium text-gray-700 mb-1"
+                      className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-100"
                     >
                       Message
                     </label>
@@ -429,7 +440,7 @@ const App: React.FC = () => {
                       value={message}
                       onChange={(e) => setMessage(e.target.value)}
                       rows={4}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-md bg-gray-100 dark:bg-gray-400 focus:ring-blue-500 focus:border-blue-500"
                       required
                     />
                   </div>
