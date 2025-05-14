@@ -2,10 +2,6 @@
 
 A modern, accessible CAPTCHA alternative for React applications that uses mimicry-based human verification.
 
-![MimicCaptcha](https://img.shields.io/badge/MimicCaptcha-v0.1.0-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
-![React](https://img.shields.io/badge/React-18.x-61dafb)
-
 ## Features
 
 - **Dual Verification Modes**: Audio tone mimicry and facial expression mimicry
