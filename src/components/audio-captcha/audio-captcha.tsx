@@ -471,6 +471,7 @@ export function AudioCaptcha({ onSuccess }: AudioCaptchaProps) {
 
       // Check for bot-like behavior in the entire recording
       const botResults = recordedResultsRef.current.filter((r) => r.isBotLike);
+
       if (botResults.length > 0) {
         // Bot detected
         console.log("Bot detected:", botResults[0].botLikeReason);
@@ -481,6 +482,7 @@ export function AudioCaptcha({ onSuccess }: AudioCaptchaProps) {
         onSuccess(true);
         return;
       }
+      
 
       // If we already know the match was achieved, go straight to success
       if (matchAchieved) {
@@ -515,13 +517,16 @@ export function AudioCaptcha({ onSuccess }: AudioCaptchaProps) {
         successTriggeredRef.current = true;
         setStage("success");
         onSuccess(false);
+        return;
       } else {
         setFailureMessage(
           "We couldn't match your tone with the expected frequency"
         );
         setStage("failure");
         onSuccess("failure");
+        return;
       }
+
     } catch (error: any) {
       console.error("Error during verification:", error);
       setFailureMessage("An error occurred during verification");
