@@ -28,7 +28,7 @@ type FrameData = {
   faceDetected: boolean;
 };
 
-export function ExpressionSequence({ onSuccess }: Props) {
+export const ExpressionSequence = ({ onSuccess }: Props) => {
   const [skipsLeft, setSkipsLeft] = useState(2); // number of skips the user has
   const videoRef = useRef<HTMLVideoElement>(null); // reference to the video element
   const intervalRef = useRef<number | null>(null); // reference to interval element
@@ -662,4 +662,4 @@ export function ExpressionSequence({ onSuccess }: Props) {
       )}
     </div>
   );
-}
+};

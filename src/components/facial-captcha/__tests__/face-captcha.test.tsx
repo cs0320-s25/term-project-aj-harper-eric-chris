@@ -1,12 +1,15 @@
 import React from "react";
 import { render, screen, waitFor, act } from "@testing-library/react";
 import "@testing-library/jest-dom";
-import ExpressionSequence from "../facial-captcha";
+import { ExpressionSequence } from "../facial-captcha";
 import {
   setMockExpression,
   setMockConstantValues,
   clearMockConstantValues,
 } from "../../../lib/mockFaceApi";
+
+// to run this test, run the following command:
+// npm test src/components/facial-captcha/__tests__/face-captcha.test.tsx
 
 // Enable fake timers
 jest.useFakeTimers();
