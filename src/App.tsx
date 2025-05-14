@@ -120,6 +120,8 @@ const App: React.FC = () => {
         onClick={() => setDarkMode((v) => !v)}
         className="absolute top-4 right-4 p-2 rounded-full transition-colors bg-gray-100 dark:bg-dark-200 hover:bg-gray-200 dark:hover:bg-dark-300 shadow-card"
         aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+        aria-pressed={darkMode}
+        title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
       >
         {darkMode ? (
           <svg
@@ -155,15 +157,23 @@ const App: React.FC = () => {
       </button>
 
       {/* Tab selection */}
-      <div className="mb-8 bg-card dark:bg-dark-100 rounded-lg shadow-card border border-card-border dark:border-dark-400 p-4 flex flex-wrap justify-center gap-2">
+      <div
+        className="mb-8 bg-card dark:bg-dark-100 rounded-lg shadow-card border border-card-border dark:border-dark-400 p-4 flex flex-wrap justify-center gap-2"
+        role="tablist"
+        aria-label="View options"
+      >
         <button
           onClick={() => setTabView("original")}
           className={`py-2 px-4 rounded-md transition-colors
             ${
               tabView === "original"
                 ? "bg-primary-600 text-white"
-                : "bg-white hover:bg-gray-100 dark:bg-dark-300 dark:hover:bg-dark-400 text-gray-800 dark:text-dark-900 border border-gray-200 dark:border-dark-500"
+                : "bg-gray-100 hover:bg-gray-150 dark:bg-dark-300 dark:hover:bg-dark-400 text-gray-800 dark:text-dark-900 border border-gray-200 dark:border-dark-500"
             }`}
+          role="tab"
+          aria-selected={tabView === "original"}
+          aria-controls="combined-setup-tab"
+          id="tab-combined-setup"
         >
           Combined Setup
         </button>
@@ -173,8 +183,12 @@ const App: React.FC = () => {
             ${
               tabView === "individual"
                 ? "bg-primary-600 text-white"
-                : "bg-white hover:bg-gray-100 dark:bg-dark-300 dark:hover:bg-dark-400 text-gray-800 dark:text-dark-900 border border-gray-200 dark:border-dark-500"
+                : "bg-gray-100 hover:bg-gray-150 dark:bg-dark-300 dark:hover:bg-dark-400 text-gray-800 dark:text-dark-900 border border-gray-200 dark:border-dark-500"
             }`}
+          role="tab"
+          aria-selected={tabView === "individual"}
+          aria-controls="individual-components-tab"
+          id="tab-individual-components"
         >
           Individual Components
         </button>
@@ -184,8 +198,12 @@ const App: React.FC = () => {
             ${
               tabView === "form-demo"
                 ? "bg-primary-600 text-white"
-                : "bg-white hover:bg-gray-100 dark:bg-dark-300 dark:hover:bg-dark-400 text-gray-800 dark:text-dark-900 border border-gray-200 dark:border-dark-500"
+                : "bg-gray-100 hover:bg-gray-150 dark:bg-dark-300 dark:hover:bg-dark-400 text-gray-800 dark:text-dark-900 border border-gray-200 dark:border-dark-500"
             }`}
+          role="tab"
+          aria-selected={tabView === "form-demo"}
+          aria-controls="form-demo-tab"
+          id="tab-form-demo"
         >
           Form Demo
         </button>
@@ -193,7 +211,12 @@ const App: React.FC = () => {
 
       <main className="w-full max-w-4xl">
         {tabView === "original" && (
-          <div className="bg-card dark:bg-dark-100 rounded-lg shadow-card border border-card-border dark:border-dark-400 p-6">
+          <div
+            className="bg-card dark:bg-dark-100 rounded-lg shadow-card border border-card-border dark:border-dark-400 p-6"
+            role="tabpanel"
+            id="combined-setup-tab"
+            aria-labelledby="tab-combined-setup"
+          >
             <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-dark-900">
               Original Implementation
             </h2>
@@ -348,14 +371,23 @@ const App: React.FC = () => {
               </div>
             ) : (
               <div>
-                <div className="tabs flex mb-4">
+                {/* Audio vs Facial tabs in Combined Setup */}
+                <div
+                  className="tabs flex mb-4 border border-gray-100 dark:border-dark-500 rounded-md overflow-hidden"
+                  role="tablist"
+                  aria-label="Choose verification method"
+                >
                   <button
                     onClick={() => setSelectedCaptchaType("audio")}
-                    className={`flex-1 py-2 px-4 rounded-tl-md rounded-bl-md border-r ${
+                    className={`flex-1 py-2 px-4 border-r border-gray-100 dark:border-dark-500 ${
                       selectedCaptchaType === "audio"
                         ? "bg-primary-600 text-white"
-                        : "bg-white dark:bg-dark-300 hover:bg-gray-100 dark:hover:bg-dark-400 text-gray-800 dark:text-dark-900"
+                        : "bg-gray-50 dark:bg-dark-300 hover:bg-gray-100 dark:hover:bg-dark-400 text-gray-800 dark:text-dark-900"
                     }`}
+                    role="tab"
+                    aria-selected={selectedCaptchaType === "audio"}
+                    aria-controls="audio-captcha-panel"
+                    id="audio-captcha-tab"
                   >
                     <span className="flex items-center justify-center">
                       <svg
@@ -364,6 +396,7 @@ const App: React.FC = () => {
                         fill="none"
                         viewBox="0 0 24 24"
                         stroke="currentColor"
+                        aria-hidden="true"
                       >
                         <path
                           strokeLinecap="round"
@@ -377,11 +410,15 @@ const App: React.FC = () => {
                   </button>
                   <button
                     onClick={() => setSelectedCaptchaType("facial")}
-                    className={`flex-1 py-2 px-4 rounded-tr-md rounded-br-md ${
+                    className={`flex-1 py-2 px-4 ${
                       selectedCaptchaType === "facial"
                         ? "bg-primary-600 text-white"
-                        : "bg-white dark:bg-dark-300 hover:bg-gray-100 dark:hover:bg-dark-400 text-gray-800 dark:text-dark-900"
+                        : "bg-gray-50 dark:bg-dark-300 hover:bg-gray-100 dark:hover:bg-dark-400 text-gray-800 dark:text-dark-900"
                     }`}
+                    role="tab"
+                    aria-selected={selectedCaptchaType === "facial"}
+                    aria-controls="facial-captcha-panel"
+                    id="facial-captcha-tab"
                   >
                     <span className="flex items-center justify-center">
                       <svg
@@ -390,6 +427,7 @@ const App: React.FC = () => {
                         fill="none"
                         viewBox="0 0 24 24"
                         stroke="currentColor"
+                        aria-hidden="true"
                       >
                         <path
                           strokeLinecap="round"
@@ -403,7 +441,20 @@ const App: React.FC = () => {
                   </button>
                 </div>
 
-                <div className="captcha-container bg-card dark:bg-dark-100 p-4 rounded-md border border-card-border dark:border-dark-400">
+                <div
+                  className="captcha-container bg-card dark:bg-dark-100 p-4 rounded-md border border-card-border dark:border-dark-400"
+                  role="tabpanel"
+                  id={
+                    selectedCaptchaType === "audio"
+                      ? "audio-captcha-panel"
+                      : "facial-captcha-panel"
+                  }
+                  aria-labelledby={
+                    selectedCaptchaType === "audio"
+                      ? "audio-captcha-tab"
+                      : "facial-captcha-tab"
+                  }
+                >
                   {selectedCaptchaType === "audio" ? (
                     <AudioCaptcha onSuccess={handleCaptchaSuccess} />
                   ) : (
@@ -418,7 +469,12 @@ const App: React.FC = () => {
         )}
 
         {tabView === "individual" && (
-          <div className="bg-card dark:bg-dark-100 rounded-lg shadow-card border border-card-border dark:border-dark-400 p-6">
+          <div
+            className="bg-card dark:bg-dark-100 rounded-lg shadow-card border border-card-border dark:border-dark-400 p-6"
+            role="tabpanel"
+            id="individual-components-tab"
+            aria-labelledby="tab-individual-components"
+          >
             <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-dark-900">
               Individual Components
             </h2>
@@ -436,6 +492,11 @@ const App: React.FC = () => {
                     {`import { AudioCaptcha } from "mimicaptcha";`}
                   </code>
                 </div>
+                <p className="text-sm text-gray-600 dark:text-dark-700 my-2">
+                  A user-friendly audio verification challenge that requires
+                  mimicking a tone.
+                </p>
+                <hr className="my-4 border-t border-gray-200 dark:border-dark-400" />
                 <div className="mt-4">
                   <AudioCaptcha onSuccess={handleCaptchaSuccess} />
                 </div>
@@ -450,6 +511,11 @@ const App: React.FC = () => {
                     {`import { ExpressionSequence } from "mimicaptcha";`}
                   </code>
                 </div>
+                <p className="text-sm text-gray-600 dark:text-dark-700 my-2">
+                  A secure facial verification challenge that requires matching
+                  expressions.
+                </p>
+                <hr className="my-4 border-t border-gray-200 dark:border-dark-400" />
                 <div className="mt-4">
                   <ErrorBoundary FallbackComponent={ErrorFallback}>
                     <ExpressionSequence onSuccess={handleCaptchaSuccess} />
@@ -461,7 +527,12 @@ const App: React.FC = () => {
         )}
 
         {tabView === "form-demo" && (
-          <div className="max-w-4xl mx-auto">
+          <div
+            className="max-w-4xl mx-auto"
+            role="tabpanel"
+            id="form-demo-tab"
+            aria-labelledby="tab-form-demo"
+          >
             <div className="text-center mb-6">
               <h2 className="text-2xl font-bold text-gray-800 dark:text-dark-900">
                 Contact Form Demo
@@ -628,9 +699,11 @@ const App: React.FC = () => {
 
                           {formCaptchaType === CaptchaType.AUDIO && (
                             <div className="mt-4">
-                              <AudioCaptcha
-                                onSuccess={handleFormCaptchaSuccess}
-                              />
+                              <div className="p-3 border border-gray-200 dark:border-dark-600/30 rounded-md">
+                                <AudioCaptcha
+                                  onSuccess={handleFormCaptchaSuccess}
+                                />
+                              </div>
                               <button
                                 type="button"
                                 onClick={() =>
@@ -645,11 +718,15 @@ const App: React.FC = () => {
 
                           {formCaptchaType === CaptchaType.FACIAL && (
                             <div className="mt-4">
-                              <ErrorBoundary FallbackComponent={ErrorFallback}>
-                                <ExpressionSequence
-                                  onSuccess={handleFormCaptchaSuccess}
-                                />
-                              </ErrorBoundary>
+                              <div className="p-3 border border-gray-200 dark:border-dark-600/30 rounded-md">
+                                <ErrorBoundary
+                                  FallbackComponent={ErrorFallback}
+                                >
+                                  <ExpressionSequence
+                                    onSuccess={handleFormCaptchaSuccess}
+                                  />
+                                </ErrorBoundary>
+                              </div>
                               <button
                                 type="button"
                                 onClick={() =>

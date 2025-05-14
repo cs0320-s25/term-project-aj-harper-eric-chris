@@ -593,9 +593,12 @@ export function AudioCaptcha({ onSuccess }: AudioCaptchaProps) {
           <h3 className="text-lg font-medium mb-2 text-center">
             Audio Tone Mimicry
           </h3>
-          <p className="text-sm text-gray-600 dark:text-dark-700 mb-4 text-center">
-            Listen to a tone and then mimic it with your voice. Hold the mimic'd
-            tone for a few seconds.
+          <p
+            className="text-sm text-gray-600 dark:text-dark-700 mb-4 text-center"
+            style={{ maxWidth: "380px", margin: "0 auto 1rem auto" }}
+          >
+            Listen to a tone and then mimic it with your voice. Hold the tone
+            for a few seconds to verify you're human.
           </p>
           <button
             onClick={handleStart}

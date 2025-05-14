@@ -378,9 +378,12 @@ export const ExpressionSequence = ({ onSuccess }: Props) => {
           <h3 className="text-lg font-medium mb-2 text-center">
             Facial Expression Challenge
           </h3>
-          <p className="text-sm text-gray-600 dark:text-dark-700 mb-4 text-center">
-            Match each expression in the sequence to verify you're human. You'll
-            need to hold each expression for a moment to proceed.
+          <p
+            className="text-sm text-gray-600 dark:text-dark-700 mb-4 text-center"
+            style={{ maxWidth: "380px", margin: "0 auto 1rem auto" }}
+          >
+            Match each expression in the sequence as shown. Hold each expression
+            briefly to verify you're human.
           </p>
           <button
             onClick={() => {
