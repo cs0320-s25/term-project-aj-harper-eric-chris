@@ -4,9 +4,9 @@ import { ExpressionSequence } from "./facial-captcha/facial-captcha";
 import { ErrorBoundary } from "react-error-boundary";
 
 /**
- * MimicCaptcha component props
+ * MimiCaptcha component props
  */
-export interface MimicCaptchaProps {
+export interface MimiCaptchaProps {
   /**
    * Function to call when captcha is successfully completed
    */
@@ -82,9 +82,9 @@ export interface MimicCaptchaProps {
 }
 
 /**
- * Default props for the MimicCaptcha component
+ * Default props for the MimiCaptcha component
  */
-const defaultProps: Partial<MimicCaptchaProps> = {
+const defaultProps: Partial<MimiCaptchaProps> = {
   defaultType: "audio",
   showTypeSwitcher: true,
   maxAttempts: 3,
@@ -98,10 +98,10 @@ const defaultProps: Partial<MimicCaptchaProps> = {
 };
 
 /**
- * MimicCaptcha - Main component that allows users to verify they are human
+ * MimiCaptcha - Main component that allows users to verify they are human
  * through audio tone matching or facial expression matching
  */
-export function MimicCaptcha(props: MimicCaptchaProps) {
+export function MimiCaptcha(props: MimiCaptchaProps) {
   // Merge default props with user props
   const {
     onSuccess,
@@ -367,4 +367,4 @@ export function MimicCaptcha(props: MimicCaptchaProps) {
   );
 }
 
-export default MimicCaptcha;
+export default MimiCaptcha;

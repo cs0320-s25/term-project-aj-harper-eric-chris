@@ -87,7 +87,7 @@ function copyDirectory(source, destination) {
  * Main installation process
  */
 function startInstallation() {
-  console.log("\n🤖 MimicCaptcha - Post-installation Setup 🤖\n");
+  console.log("\n🤖 MimiCaptcha - Post-installation Setup 🤖\n");
   console.log(
     "The facial recognition captcha requires model files to work properly."
   );

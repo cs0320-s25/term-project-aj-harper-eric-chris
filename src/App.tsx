@@ -110,7 +110,7 @@ const App: React.FC = () => {
     <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-gradient-to-b from-gray-50 to-gray-100 dark:from-dark-100 dark:to-dark-200 text-gray-900 dark:text-dark-900">
       <header className="mb-8 text-center">
         <h1 className="text-4xl font-bold mb-2 text-primary-600 dark:text-primary-400">
-          MimicCaptcha
+          MimiCaptcha
         </h1>
         <p className="text-gray-600 dark:text-dark-700 max-w-md">
           A multimodal CAPTCHA system based on human mimicry capabilities
@@ -790,7 +790,7 @@ const App: React.FC = () => {
 
       <footer className="mt-12 text-center text-gray-500 dark:text-dark-600 text-sm">
         <p>
-          © {new Date().getFullYear()} MimicCaptcha. Privacy-first human
+          © {new Date().getFullYear()} MimiCaptcha. Privacy-first human
           verification.
         </p>
       </footer>

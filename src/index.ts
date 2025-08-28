@@ -1,13 +1,13 @@
 /**
- * MimicCaptcha - A customizable human verification captcha component
+ * MimiCaptcha - A customizable human verification captcha component
  *
  * Main components and types exports
  */
 // Export main component
 export {
-  MimicCaptcha,
-  type MimicCaptchaProps,
-} from "./components/MimicCaptcha";
+  MimiCaptcha,
+  type MimiCaptchaProps,
+} from "./components/MimiCaptcha";
 
 // Export individual components for advanced usage
 export { AudioCaptcha } from "./components/audio-captcha/audio-captcha";

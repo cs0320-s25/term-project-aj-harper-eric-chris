@@ -1,6 +1,6 @@
-# Building and Testing MimicCaptcha
+# Building and Testing MimiCaptcha
 
-This document provides instructions on how to build, test, and integrate the MimicCaptcha component.
+This document provides instructions on how to build, test, and integrate the MimiCaptcha component.
 
 ## Development Setup
 
@@ -47,7 +47,7 @@ npm link ../path/to/mimicaptcha
 ### Using the Component
 
 ```jsx
-import { MimicCaptcha } from "mimicaptcha";
+import { MimiCaptcha } from "mimicaptcha";
 
 function MyForm() {
   const handleSuccess = () => {
@@ -57,7 +57,7 @@ function MyForm() {
 
   return (
     <div>
-      <MimicCaptcha
+      <MimiCaptcha
         onSuccess={handleSuccess}
         defaultType="audio" // or "facial"
       />
@@ -84,7 +84,7 @@ The package includes several accessibility enhancements:
 
 ## Browser Compatibility
 
-MimicCaptcha works in all modern browsers that support:
+MimiCaptcha works in all modern browsers that support:
 
 - Web Audio API
 - getUserMedia API (for camera/microphone access)
@@ -105,4 +105,4 @@ If users encounter permission errors:
 If you encounter styling conflicts:
 
 - The package uses encapsulated CSS modules
-- You can override styles with the `className` prop on the MimicCaptcha component
+- You can override styles with the `className` prop on the MimiCaptcha component

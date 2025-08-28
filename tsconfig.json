@@ -26,7 +26,7 @@
   "include": [
     "src/components/audio-captcha/**/*.tsx",
     "src/components/facial-captcha/**/*.tsx",
-    "src/components/MimicCaptcha.tsx",
+    "src/components/MimiCaptcha.tsx",
     "src/index.ts",
     "src/lib/**/*.ts",
     "src/lib/**/*.tsx"
