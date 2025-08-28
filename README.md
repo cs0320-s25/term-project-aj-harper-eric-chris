@@ -1,4 +1,4 @@
-# MimicCaptcha
+# MimiCaptcha
 
 A modern, accessible CAPTCHA alternative for React applications that uses mimicry-based human verification.
 
@@ -13,7 +13,7 @@ A modern, accessible CAPTCHA alternative for React applications that uses mimicr
 
 ## Demo Application
 
-The repository includes a demo application that showcases the MimicCaptcha components in action:
+The repository includes a demo application that showcases the MimiCaptcha components in action:
 
 ### Features in Demo
 
@@ -35,7 +35,7 @@ npm install mimicaptcha
 After installation, the post-install script will prompt you to set up the face detection models:
 
 ```
-🤖 MimicCaptcha - Post-installation Setup 🤖
+🤖 MimiCaptcha - Post-installation Setup 🤖
 
 The facial recognition captcha requires model files to work properly.
 Would you like to copy the face detection models? (Y/n):
@@ -49,7 +49,7 @@ If you choose yes, the models will be copied to your project's public directory.
 
 ```jsx
 import React from "react";
-import { MimicCaptcha } from "mimicaptcha";
+import { MimiCaptcha } from "mimicaptcha";
 
 function MyForm() {
   const handleSuccess = () => {
@@ -64,7 +64,7 @@ function MyForm() {
         {/* Your form fields */}
 
         <div className="captcha-container">
-          <MimicCaptcha onSuccess={handleSuccess} />
+          <MimiCaptcha onSuccess={handleSuccess} />
         </div>
 
         <button type="submit">Submit</button>
@@ -149,7 +149,7 @@ npm run dev
 
 ## Accessibility Features
 
-MimicCaptcha is designed with accessibility in mind:
+MimiCaptcha is designed with accessibility in mind:
 
 - **Keyboard Navigation**: Full keyboard support with proper focus management
 - **Screen Reader Support**: ARIA attributes and live regions for important announcements
@@ -167,4 +167,4 @@ MimicCaptcha is designed with accessibility in mind:
 
 ## License
 
-MIT License © 2025 MimicCaptcha
+MIT License © 2025 MimiCaptcha
